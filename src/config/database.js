@@ -2,6 +2,25 @@ const mongoose = require('mongoose');
 const { DEFAULT_HOUSES } = require('../constants/houses');
 const { validateMongoEnv } = require('../utils/mongoEnv');
 
+const OBSOLETE_SLUGS = ['targaryen'];
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function removeHouseConflicts(House, house) {
+  const result = await House.deleteMany({
+    slug: { $ne: house.slug },
+    name: new RegExp(`^${escapeRegExp(house.name)}$`, 'i'),
+  });
+
+  if (result.deletedCount > 0) {
+    console.log(
+      `[Sete] Migração: removida(s) ${result.deletedCount} casa(s) conflitante(s) com o nome "${house.name}".`,
+    );
+  }
+}
+
 async function connectDatabase() {
   const { uri, errors, maskedUri } = validateMongoEnv();
 
@@ -41,6 +60,8 @@ async function connectDatabase() {
 }
 
 async function upsertDefaultHouse(House, house, resetMembers = false) {
+  await removeHouseConflicts(House, house);
+
   const update = {
     name: house.name,
     level: house.level,
@@ -54,22 +75,48 @@ async function upsertDefaultHouse(House, house, resetMembers = false) {
     update.members = [];
   }
 
-  await House.updateOne(
-    { slug: house.slug },
-    {
-      $set: update,
-      $setOnInsert: {
-        goldDragons: 0,
-        lordId: null,
-        members: [],
+  try {
+    await House.updateOne(
+      { slug: house.slug },
+      {
+        $set: update,
+        $setOnInsert: {
+          goldDragons: 0,
+          lordId: null,
+          members: [],
+        },
       },
-    },
-    { upsert: true },
-  );
+      { upsert: true },
+    );
+  } catch (error) {
+    if (error.code !== 11000) {
+      throw error;
+    }
+
+    await removeHouseConflicts(House, house);
+
+    await House.updateOne(
+      { slug: house.slug },
+      {
+        $set: update,
+        $setOnInsert: {
+          goldDragons: 0,
+          lordId: null,
+          members: [],
+        },
+      },
+      { upsert: true },
+    );
+  }
 }
 
 async function seedDefaultHouses() {
   const House = require('../models/House');
+
+  const obsoleteResult = await House.deleteMany({ slug: { $in: OBSOLETE_SLUGS } });
+  if (obsoleteResult.deletedCount > 0) {
+    console.log(`[Sete] Migração: removida(s) ${obsoleteResult.deletedCount} casa(s) obsoleta(s).`);
+  }
 
   for (const house of DEFAULT_HOUSES) {
     await upsertDefaultHouse(House, house, false);
@@ -82,6 +129,7 @@ async function resetAllHouses() {
   const House = require('../models/House');
   const defaultSlugs = DEFAULT_HOUSES.map((house) => house.slug);
 
+  await House.deleteMany({ slug: { $in: OBSOLETE_SLUGS } });
   await House.deleteMany({ slug: { $nin: defaultSlugs } });
 
   for (const house of DEFAULT_HOUSES) {
