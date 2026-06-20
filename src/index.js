@@ -50,7 +50,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     console.error(`Erro ao executar /${interaction.commandName}:`, error);
 
     const reply = {
-      content: '❌ Ocorreu um erro ao executar este comando. Tente novamente.',
+      content: '### Erro\nOcorreu um erro ao executar este comando. Tente novamente.',
       ephemeral: true,
     };
 

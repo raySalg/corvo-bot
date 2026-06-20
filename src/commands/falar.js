@@ -1,8 +1,10 @@
 const {
   SlashCommandBuilder,
   PermissionFlagsBits,
+  EmbedBuilder,
 } = require('discord.js');
 const { requireAdmin } = require('../utils/permissions');
+const { randomEmbedColor } = require('../utils/embed');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -22,13 +24,18 @@ module.exports = {
 
     const message = interaction.options.getString('mensagem');
 
+    const embed = new EmbedBuilder()
+      .setColor(randomEmbedColor())
+      .setTitle('Proclamação do Sete')
+      .setDescription(`### Decreto real\n${message}`)
+      .setFooter({ text: `Proclamado por ${interaction.user.username}` })
+      .setTimestamp();
+
     await interaction.reply({
-      content: '📜 O Sete proclama...',
+      content: '### Proclamação enviada\nA mensagem foi publicada no canal.',
       ephemeral: true,
     });
 
-    await interaction.channel.send({
-      content: `📜 **Proclamação do Sete:**\n${message}`,
-    });
+    await interaction.channel.send({ embeds: [embed] });
   },
 };

@@ -24,8 +24,8 @@ module.exports = {
         .setDescription('Nova classificação')
         .setRequired(true)
         .addChoices(
-          { name: 'Casa Dominante', value: HOUSE_LEVELS.DOMINANTE },
-          { name: 'Casa Maior (Soberana)', value: HOUSE_LEVELS.MAIOR },
+          { name: 'Casa Dominante (Imperador)', value: HOUSE_LEVELS.DOMINANTE },
+          { name: 'Casa Soberana (Rei)', value: HOUSE_LEVELS.MAIOR },
           { name: 'Casa Menor (Vassala)', value: HOUSE_LEVELS.MENOR },
         ),
     ),
@@ -55,7 +55,7 @@ module.exports = {
     const house = await House.findOne({ slug });
     if (!house) {
       await interaction.reply({
-        content: '❌ Casa não encontrada.',
+        content: '### Casa não encontrada\nNenhuma casa corresponde a essa busca.',
         ephemeral: true,
       });
       return;
@@ -65,7 +65,9 @@ module.exports = {
       const dominantHouse = await House.findOne({ level: HOUSE_LEVELS.DOMINANTE });
       if (dominantHouse) {
         await interaction.reply({
-          content: `❌ **${dominantHouse.name}** já ocupa o Trono de Ferro. Altere o nível dela primeiro.`,
+          content:
+            '### Trono imperial ocupado\n' +
+            `**${dominantHouse.name}** já é a Casa Dominante. Altere o nível dela primeiro.`,
           ephemeral: true,
         });
         return;
@@ -78,9 +80,11 @@ module.exports = {
 
     await interaction.reply({
       content: [
-        `👑 A casa **${house.name}** mudou de classificação.`,
-        `• Antes: ${HOUSE_LEVEL_LABELS[previousLevel]}`,
-        `• Agora: ${HOUSE_LEVEL_LABELS[newLevel]}`,
+        '### Classificação alterada',
+        `A casa **${house.name}** mudou de nível.`,
+        '',
+        `**Antes:** ${HOUSE_LEVEL_LABELS[previousLevel]}`,
+        `**Agora:** ${HOUSE_LEVEL_LABELS[newLevel]}`,
       ].join('\n'),
     });
   },

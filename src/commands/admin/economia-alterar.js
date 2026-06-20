@@ -36,11 +36,11 @@ module.exports = {
       name: { $regex: focused, $options: 'i' },
     })
       .limit(25)
-      .select('name slug');
+      .select('name slug goldDragons');
 
     await interaction.respond(
       houses.map((house) => ({
-        name: `${house.name} — ${house.goldDragons ?? 0} 🐉`,
+        name: `${house.name} — ${house.goldDragons ?? 0} moedas`,
         value: house.slug,
       })),
     );
@@ -56,7 +56,7 @@ module.exports = {
     const house = await House.findOne({ slug });
     if (!house) {
       await interaction.reply({
-        content: '❌ Casa não encontrada.',
+        content: '### Casa não encontrada\nNenhuma casa corresponde a essa busca.',
         ephemeral: true,
       });
       return;
@@ -68,14 +68,16 @@ module.exports = {
 
     const sign = amount >= 0 ? '+' : '';
     const lines = [
-      `💰 Tesouro da casa **${house.name}** atualizado.`,
-      `• Alteração: ${sign}${amount} 🐉 moedas de ouro`,
-      `• Saldo anterior: ${previousBalance} 🐉`,
-      `• Saldo atual: ${house.goldDragons} 🐉`,
+      '### Tesouro atualizado',
+      `A economia da casa **${house.name}** foi alterada.`,
+      '',
+      `**Alteração:** ${sign}${amount} moedas de ouro`,
+      `**Saldo anterior:** ${previousBalance}`,
+      `**Saldo atual:** ${house.goldDragons}`,
     ];
 
     if (reason) {
-      lines.push(`• Motivo: ${reason}`);
+      lines.push(`**Motivo:** ${reason}`);
     }
 
     await interaction.reply({ content: lines.join('\n') });

@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { DEFAULT_HOUSES } = require('../constants/houses');
+const { DEFAULT_HOUSES, DEFAULT_MAX_MEMBERS } = require('../constants/houses');
 const { validateMongoEnv } = require('../utils/mongoEnv');
 
 async function connectDatabase() {
@@ -47,11 +47,11 @@ async function seedDefaultHouses() {
     await House.updateOne(
       { slug: house.slug },
       {
+        $set: { maxMembers: DEFAULT_MAX_MEMBERS },
         $setOnInsert: {
           name: house.name,
           slug: house.slug,
           level: house.level,
-          maxMembers: house.maxMembers,
           goldDragons: 0,
           lordId: null,
           members: [],
@@ -60,6 +60,8 @@ async function seedDefaultHouses() {
       { upsert: true },
     );
   }
+
+  await House.updateMany({}, { $set: { maxMembers: DEFAULT_MAX_MEMBERS } });
 
   console.log('[Sete] Casas padrão de Westeros verificadas.');
 }

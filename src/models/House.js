@@ -10,7 +10,7 @@ const houseSchema = new mongoose.Schema(
       enum: Object.values(HOUSE_LEVELS),
       default: HOUSE_LEVELS.MENOR,
     },
-    maxMembers: { type: Number, required: true, min: 1, default: 30 },
+    maxMembers: { type: Number, required: true, min: 1, default: 3 },
     goldDragons: { type: Number, default: 0 },
     lordId: { type: String, default: null },
     members: [{ type: String }],

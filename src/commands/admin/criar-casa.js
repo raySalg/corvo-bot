@@ -3,7 +3,7 @@ const {
   PermissionFlagsBits,
 } = require('discord.js');
 const House = require('../../models/House');
-const { HOUSE_LEVELS, HOUSE_LEVEL_LABELS } = require('../../constants/houses');
+const { HOUSE_LEVELS, HOUSE_LEVEL_LABELS, DEFAULT_MAX_MEMBERS } = require('../../constants/houses');
 const { requireAdmin, slugify } = require('../../utils/permissions');
 
 module.exports = {
@@ -17,22 +17,14 @@ module.exports = {
         .setDescription('Nome da casa (ex: Mormont)')
         .setRequired(true),
     )
-    .addIntegerOption((option) =>
-      option
-        .setName('limite')
-        .setDescription('Número máximo de membros (inclui o Lorde)')
-        .setRequired(true)
-        .setMinValue(2)
-        .setMaxValue(500),
-    )
     .addStringOption((option) =>
       option
         .setName('nivel')
         .setDescription('Classificação da casa')
         .setRequired(true)
         .addChoices(
-          { name: 'Casa Dominante', value: HOUSE_LEVELS.DOMINANTE },
-          { name: 'Casa Maior (Soberana)', value: HOUSE_LEVELS.MAIOR },
+          { name: 'Casa Dominante (Imperador)', value: HOUSE_LEVELS.DOMINANTE },
+          { name: 'Casa Soberana (Rei)', value: HOUSE_LEVELS.MAIOR },
           { name: 'Casa Menor (Vassala)', value: HOUSE_LEVELS.MENOR },
         ),
     ),
@@ -41,13 +33,12 @@ module.exports = {
     if (!requireAdmin(interaction)) return;
 
     const name = interaction.options.getString('nome').trim();
-    const maxMembers = interaction.options.getInteger('limite');
     const level = interaction.options.getString('nivel');
     const slug = slugify(name);
 
     if (!slug) {
       await interaction.reply({
-        content: '❌ Nome de casa inválido.',
+        content: '### Nome inválido\nInforme um nome válido para a casa.',
         ephemeral: true,
       });
       return;
@@ -59,7 +50,7 @@ module.exports = {
 
     if (existing) {
       await interaction.reply({
-        content: `❌ A casa **${existing.name}** já existe em Westeros.`,
+        content: `### Casa já existente\nA casa **${existing.name}** já está registrada em Westeros.`,
         ephemeral: true,
       });
       return;
@@ -69,7 +60,9 @@ module.exports = {
       const dominantHouse = await House.findOne({ level: HOUSE_LEVELS.DOMINANTE });
       if (dominantHouse) {
         await interaction.reply({
-          content: `❌ Já existe uma Casa Dominante: **${dominantHouse.name}**. Altere o nível dela antes de criar outra.`,
+          content:
+            '### Casa Dominante já definida\n' +
+            `**${dominantHouse.name}** já ocupa o trono imperial. Altere o nível dela antes de criar outra.`,
           ephemeral: true,
         });
         return;
@@ -80,7 +73,7 @@ module.exports = {
       name,
       slug,
       level,
-      maxMembers,
+      maxMembers: DEFAULT_MAX_MEMBERS,
       goldDragons: 0,
       lordId: null,
       members: [],
@@ -88,10 +81,12 @@ module.exports = {
 
     await interaction.reply({
       content: [
-        `🏰 **${house.name}** foi fundada em Westeros!`,
-        `• Nível: ${HOUSE_LEVEL_LABELS[house.level]}`,
-        `• Limite de membros: ${house.maxMembers}`,
-        `• Tesouro: 0 🐉 moedas de ouro`,
+        '### Casa fundada',
+        `**${house.name}** entrou nos registros de Westeros.`,
+        '',
+        `**Nível:** ${HOUSE_LEVEL_LABELS[house.level]}`,
+        `**Limite de membros:** ${house.maxMembers} (inclui Lorde/Lady)`,
+        '**Tesouro:** 0 moedas de ouro',
       ].join('\n'),
     });
   },

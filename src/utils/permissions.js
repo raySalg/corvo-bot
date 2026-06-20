@@ -7,7 +7,7 @@ function isAdmin(interaction) {
 function requireAdmin(interaction) {
   if (!isAdmin(interaction)) {
     interaction.reply({
-      content: '⚔️ Apenas administradores do reino podem usar este comando.',
+      content: '### Acesso negado\nApenas **administradores** do reino podem usar este comando.',
       ephemeral: true,
     });
     return false;
