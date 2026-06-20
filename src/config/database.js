@@ -127,14 +127,21 @@ async function seedDefaultHouses() {
 
 async function resetAllHouses() {
   const House = require('../models/House');
-  const defaultSlugs = DEFAULT_HOUSES.map((house) => house.slug);
 
-  await House.deleteMany({ slug: { $in: OBSOLETE_SLUGS } });
-  await House.deleteMany({ slug: { $nin: defaultSlugs } });
+  await House.deleteMany({});
 
-  for (const house of DEFAULT_HOUSES) {
-    await upsertDefaultHouse(House, house, true);
-  }
+  await House.insertMany(
+    DEFAULT_HOUSES.map((house) => ({
+      name: house.name,
+      slug: house.slug,
+      level: house.level,
+      region: house.region,
+      maxMembers: house.maxMembers,
+      goldDragons: 0,
+      lordId: null,
+      members: [],
+    })),
+  );
 
   console.log('[Sete] Todas as casas foram reiniciadas.');
 }

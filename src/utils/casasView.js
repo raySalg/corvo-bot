@@ -1,7 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const House = require('../models/House');
 const { DOMINANT_HOUSE_SLUG } = require('../constants/houses');
-const { REGION_ORDER, REGION_LABELS, REGION_EMOJIS } = require('../constants/regions');
+const { REGION_ORDER, REGION_LABELS } = require('../constants/regions');
 const { randomEmbedColor } = require('./embed');
 const { formatHouseLine, buildRegionSection } = require('./houseDisplay');
 
@@ -12,7 +12,7 @@ function buildDominantSection(dominantHouse) {
     return '## Casa Dominante\nNenhuma Casa Dominante definida.';
   }
 
-  return `## Casa Dominante\n${formatHouseLine(dominantHouse)}\n\n*A Casa Dominante não pode ser escolhida diretamente. Use as regiões abaixo para ver e entrar nas demais casas.*`;
+  return `## Casa Dominante\n${formatHouseLine(dominantHouse)}`;
 }
 
 function buildOverviewEmbed(houses) {
@@ -24,7 +24,8 @@ function buildOverviewEmbed(houses) {
     .setDescription(
       `${buildDominantSection(dominantHouse)}\n\n` +
         '## Regiões\n' +
-        'Selecione uma região para ver suas casas.\n\n' +
+        'Selecione uma região para ver suas casas.\n' +
+        'Para jurar lealdade, use **/escolher-casa**.\n\n' +
         '**Legenda:** 🟢 Senhor(a) disponível · 🟡 vagas de membro · 🔴 lotada',
     )
     .setTimestamp();
@@ -36,8 +37,7 @@ function buildOverviewEmbed(houses) {
     const button = new ButtonBuilder()
       .setCustomId(`${CASAS_REGION_PREFIX}:${region}`)
       .setLabel(REGION_LABELS[region])
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji(REGION_EMOJIS[region]);
+      .setStyle(ButtonStyle.Secondary);
 
     currentRow.addComponents(button);
 
@@ -61,8 +61,10 @@ function buildRegionEmbed(houses, region) {
   return new EmbedBuilder()
     .setColor(randomEmbedColor())
     .setTitle(`Casas — ${REGION_LABELS[region]}`)
-    .setDescription(`## ${REGION_LABELS[region]}\n${section ?? 'Nenhuma casa registrada nesta região.'}`)
-    .setFooter({ text: 'Use /escolher-casa para jurar lealdade.' })
+    .setDescription(
+      `## ${REGION_LABELS[region]}\n${section ?? 'Nenhuma casa registrada nesta região.'}\n\n` +
+        'Para jurar lealdade, use **/escolher-casa**.',
+    )
     .setTimestamp();
 }
 

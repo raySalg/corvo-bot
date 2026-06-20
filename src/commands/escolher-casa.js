@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const House = require('../models/House');
-const { HOUSE_LEVELS, HOUSE_LEVEL_LABELS } = require('../constants/houses');
+const { HOUSE_LEVEL_LABELS } = require('../constants/houses');
 const { REGION_LABELS } = require('../constants/regions');
 const { autocompleteHouses } = require('../utils/houseDisplay');
 const { findUserHouse } = require('../utils/houseMembers');
@@ -28,7 +28,7 @@ module.exports = {
     ),
 
   async autocomplete(interaction) {
-    await autocompleteHouses(interaction, { excludeDominant: true });
+    await autocompleteHouses(interaction);
   },
 
   async execute(interaction) {
@@ -40,16 +40,6 @@ module.exports = {
     if (!house) {
       await interaction.reply({
         content: '### Casa não encontrada\nEsta casa não existe nos registros de Westeros.',
-        ephemeral: true,
-      });
-      return;
-    }
-
-    if (house.level === HOUSE_LEVELS.DOMINANTE) {
-      await interaction.reply({
-        content:
-          '### Casa indisponível\n' +
-          'A **Casa Dominante** não pode ser escolhida por este comando. Selecione uma casa em uma das regiões.',
         ephemeral: true,
       });
       return;
