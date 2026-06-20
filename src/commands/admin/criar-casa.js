@@ -4,6 +4,7 @@ const {
 } = require('discord.js');
 const House = require('../../models/House');
 const { HOUSE_LEVELS, HOUSE_LEVEL_LABELS, DEFAULT_MAX_MEMBERS } = require('../../constants/houses');
+const { getRegionChoices, REGION_LABELS } = require('../../constants/regions');
 const { requireAdmin, slugify } = require('../../utils/permissions');
 
 module.exports = {
@@ -19,21 +20,38 @@ module.exports = {
     )
     .addStringOption((option) =>
       option
+        .setName('regiao')
+        .setDescription('Região da casa')
+        .setRequired(true)
+        .addChoices(...getRegionChoices()),
+    )
+    .addStringOption((option) =>
+      option
         .setName('nivel')
         .setDescription('Classificação da casa')
         .setRequired(true)
         .addChoices(
           { name: 'Casa Dominante (Imperador)', value: HOUSE_LEVELS.DOMINANTE },
           { name: 'Casa Soberana (Rei)', value: HOUSE_LEVELS.MAIOR },
-          { name: 'Casa Menor (Vassala)', value: HOUSE_LEVELS.MENOR },
+          { name: 'Casa Vassala', value: HOUSE_LEVELS.MENOR },
         ),
+    )
+    .addIntegerOption((option) =>
+      option
+        .setName('limite')
+        .setDescription('Limite de vagas (padrão: 3)')
+        .setRequired(false)
+        .setMinValue(2)
+        .setMaxValue(100),
     ),
 
   async execute(interaction) {
     if (!requireAdmin(interaction)) return;
 
     const name = interaction.options.getString('nome').trim();
+    const region = interaction.options.getString('regiao');
     const level = interaction.options.getString('nivel');
+    const maxMembers = interaction.options.getInteger('limite') ?? DEFAULT_MAX_MEMBERS;
     const slug = slugify(name);
 
     if (!slug) {
@@ -62,7 +80,7 @@ module.exports = {
         await interaction.reply({
           content:
             '### Casa Dominante já definida\n' +
-            `**${dominantHouse.name}** já ocupa o trono imperial. Altere o nível dela antes de criar outra.`,
+            `**${dominantHouse.name}** já ocupa o trono imperial.`,
           ephemeral: true,
         });
         return;
@@ -72,8 +90,9 @@ module.exports = {
     const house = await House.create({
       name,
       slug,
+      region,
       level,
-      maxMembers: DEFAULT_MAX_MEMBERS,
+      maxMembers,
       goldDragons: 0,
       lordId: null,
       members: [],
@@ -84,8 +103,9 @@ module.exports = {
         '### Casa fundada',
         `**${house.name}** entrou nos registros de Westeros.`,
         '',
+        `**Região:** ${REGION_LABELS[region]}`,
         `**Nível:** ${HOUSE_LEVEL_LABELS[house.level]}`,
-        `**Limite de membros:** ${house.maxMembers} (inclui Lorde/Lady)`,
+        `**Limite de membros:** ${house.maxMembers} (inclui Senhor(a))`,
         '**Tesouro:** 0 moedas de ouro',
       ].join('\n'),
     });

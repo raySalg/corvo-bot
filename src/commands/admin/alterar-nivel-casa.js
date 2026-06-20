@@ -26,7 +26,7 @@ module.exports = {
         .addChoices(
           { name: 'Casa Dominante (Imperador)', value: HOUSE_LEVELS.DOMINANTE },
           { name: 'Casa Soberana (Rei)', value: HOUSE_LEVELS.MAIOR },
-          { name: 'Casa Menor (Vassala)', value: HOUSE_LEVELS.MENOR },
+          { name: 'Casa Vassala', value: HOUSE_LEVELS.MENOR },
         ),
     ),
 

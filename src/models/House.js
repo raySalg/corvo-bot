@@ -1,14 +1,19 @@
 const mongoose = require('mongoose');
-const { HOUSE_LEVELS } = require('../constants/houses');
+const { REGIONS } = require('../constants/regions');
 
 const houseSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, unique: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    region: {
+      type: String,
+      enum: Object.values(REGIONS),
+      required: true,
+    },
     level: {
       type: String,
-      enum: Object.values(HOUSE_LEVELS),
-      default: HOUSE_LEVELS.MENOR,
+      enum: ['dominante', 'maior', 'menor'],
+      default: 'menor',
     },
     maxMembers: { type: Number, required: true, min: 1, default: 3 },
     goldDragons: { type: Number, default: 0 },

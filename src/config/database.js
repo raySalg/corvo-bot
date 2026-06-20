@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { DEFAULT_HOUSES, DEFAULT_MAX_MEMBERS } = require('../constants/houses');
+const { DEFAULT_HOUSES } = require('../constants/houses');
 const { validateMongoEnv } = require('../utils/mongoEnv');
 
 async function connectDatabase() {
@@ -40,30 +40,55 @@ async function connectDatabase() {
   }
 }
 
+async function upsertDefaultHouse(House, house, resetMembers = false) {
+  const update = {
+    name: house.name,
+    level: house.level,
+    region: house.region,
+    maxMembers: house.maxMembers,
+  };
+
+  if (resetMembers) {
+    update.goldDragons = 0;
+    update.lordId = null;
+    update.members = [];
+  }
+
+  await House.updateOne(
+    { slug: house.slug },
+    {
+      $set: update,
+      $setOnInsert: {
+        goldDragons: 0,
+        lordId: null,
+        members: [],
+      },
+    },
+    { upsert: true },
+  );
+}
+
 async function seedDefaultHouses() {
   const House = require('../models/House');
 
   for (const house of DEFAULT_HOUSES) {
-    await House.updateOne(
-      { slug: house.slug },
-      {
-        $set: { maxMembers: DEFAULT_MAX_MEMBERS },
-        $setOnInsert: {
-          name: house.name,
-          slug: house.slug,
-          level: house.level,
-          goldDragons: 0,
-          lordId: null,
-          members: [],
-        },
-      },
-      { upsert: true },
-    );
+    await upsertDefaultHouse(House, house, false);
   }
-
-  await House.updateMany({}, { $set: { maxMembers: DEFAULT_MAX_MEMBERS } });
 
   console.log('[Sete] Casas padrão de Westeros verificadas.');
 }
 
-module.exports = { connectDatabase, seedDefaultHouses };
+async function resetAllHouses() {
+  const House = require('../models/House');
+  const defaultSlugs = DEFAULT_HOUSES.map((house) => house.slug);
+
+  await House.deleteMany({ slug: { $nin: defaultSlugs } });
+
+  for (const house of DEFAULT_HOUSES) {
+    await upsertDefaultHouse(House, house, true);
+  }
+
+  console.log('[Sete] Todas as casas foram reiniciadas.');
+}
+
+module.exports = { connectDatabase, seedDefaultHouses, resetAllHouses };

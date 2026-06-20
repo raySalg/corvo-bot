@@ -6,6 +6,7 @@ const { loadCommands } = require('./handlers/commandHandler');
 const { startKeepAliveServer } = require('./server/keepAlive');
 
 const { validateDiscordEnv } = require('./utils/discordEnv');
+const { CASAS_REGION_PREFIX, handleCasasRegionButton } = require('./utils/casasView');
 const { token, errors } = validateDiscordEnv();
 
 if (errors.length > 0) {
@@ -27,6 +28,26 @@ client.once(Events.ClientReady, (readyClient) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isButton() && interaction.customId.startsWith(CASAS_REGION_PREFIX)) {
+    try {
+      await handleCasasRegionButton(interaction);
+    } catch (error) {
+      console.error('Erro ao processar botão de região:', error);
+
+      const reply = {
+        content: '### Erro\nNão foi possível carregar esta região. Tente novamente.',
+        ephemeral: true,
+      };
+
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(reply);
+      } else {
+        await interaction.reply(reply);
+      }
+    }
+    return;
+  }
+
   if (interaction.isAutocomplete()) {
     const command = commands.get(interaction.commandName);
     if (!command?.autocomplete) return;
