@@ -5,6 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "start:render": "npm run deploy-commands && npm start",
     "deploy-commands": "node src/deploy-commands.js",
     "dev": "node --watch src/index.js"
   },
@@ -20,6 +21,7 @@
   "dependencies": {
     "discord.js": "^14.19.3",
     "dotenv": "^16.5.0",
+    "express": "^4.21.2",
     "mongoose": "^8.16.0"
   }
 }

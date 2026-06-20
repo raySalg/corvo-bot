@@ -3,11 +3,16 @@ require('dotenv').config();
 const { Client, Events, GatewayIntentBits } = require('discord.js');
 const { connectDatabase, seedDefaultHouses } = require('./config/database');
 const { loadCommands } = require('./handlers/commandHandler');
+const { startKeepAliveServer } = require('./server/keepAlive');
 
-const token = process.env.DISCORD_TOKEN;
+const { validateDiscordEnv } = require('./utils/discordEnv');
+const { token, errors } = validateDiscordEnv();
 
-if (!token) {
-  console.error('Defina DISCORD_TOKEN no arquivo .env');
+if (errors.length > 0) {
+  console.error('[Sete] Variáveis de ambiente inválidas:');
+  for (const error of errors) {
+    console.error(`  - ${error}`);
+  }
   process.exit(1);
 }
 
@@ -58,6 +63,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 async function start() {
+  startKeepAliveServer();
   await connectDatabase();
   await seedDefaultHouses();
   await client.login(token);

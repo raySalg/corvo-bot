@@ -41,6 +41,7 @@ cp .env.example .env
 | `DISCORD_CLIENT_ID` | Application ID (`1517984369120378980`) |
 | `DISCORD_GUILD_ID` | ID do servidor de testes (comandos aparecem na hora) |
 | `MONGODB_URI` | Connection string do MongoDB Atlas |
+| `PORT` | Porta HTTP (Render define automaticamente; localmente usa `3000`) |
 
 > **Segurança:** nunca commite o arquivo `.env`. O OAuth Secret e a Public Key ficam no Developer Portal; este bot usa o token do bot via Gateway, não OAuth web.
 
@@ -77,17 +78,34 @@ https://discord.com/api/oauth2/authorize?client_id=1517984369120378980&permissio
 
 ## Deploy no Render
 
-1. Faça push deste repositório para o GitHub (`ray.salg/sete-bot`).
-2. No [Render](https://render.com), crie um **Background Worker**.
+1. Faça push deste repositório para o GitHub.
+2. No [Render](https://render.com), crie um **Web Service** (não Background Worker).
 3. Conecte o repositório GitHub.
 4. Configure as variáveis de ambiente:
    - `DISCORD_TOKEN`
    - `DISCORD_CLIENT_ID`
+   - `DISCORD_GUILD_ID`
    - `MONGODB_URI`
-5. **Build Command:** `npm install && npm run deploy-commands`
-6. **Start Command:** `npm start`
+5. **Build Command:** `npm install`
+6. **Start Command:** `npm run deploy-commands && npm start`
+
+O bot sobe um servidor HTTP mínimo (Express) que responde `Estou vivo!` em `/` e `/health`. Isso permite que o Render detecte a porta e evita que o serviço durma por inatividade quando combinado com um ping externo.
 
 O arquivo `render.yaml` já descreve essa configuração para deploy via Blueprint.
+
+### Manter o bot acordado 24h (UptimeRobot)
+
+No plano gratuito, o Render pode suspender serviços web após ~15 minutos sem tráfego HTTP. Para evitar isso:
+
+1. Após o deploy, copie a URL do Render (ex: `https://sete-bot.onrender.com`).
+2. Crie conta gratuita em [uptimerobot.com](https://uptimerobot.com).
+3. **Add New Monitor**:
+   - **Monitor Type:** HTTP(s)
+   - **URL:** `https://seu-app.onrender.com/health`
+   - **Monitoring Interval:** 5 minutes
+4. Salve. O UptimeRobot fará ping a cada 5 minutos, mantendo o bot ativo.
+
+Teste manual: abra `https://seu-app.onrender.com/` no navegador — deve aparecer `Estou vivo!`.
 
 ## Estrutura do projeto
 
@@ -102,6 +120,7 @@ src/
 ├── constants/houses.js
 ├── handlers/
 ├── models/House.js    # Schema MongoDB
+├── server/keepAlive.js # Servidor HTTP para keep-alive no Render
 └── index.js
 ```
 

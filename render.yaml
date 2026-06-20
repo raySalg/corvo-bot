@@ -1,14 +1,17 @@
 services:
-  - type: worker
+  - type: web
     name: sete-bot
     runtime: node
     plan: free
-    buildCommand: npm install && npm run deploy-commands
-    startCommand: npm start
+    buildCommand: npm install
+    startCommand: npm run deploy-commands && npm start
+    healthCheckPath: /health
     envVars:
       - key: DISCORD_TOKEN
         sync: false
       - key: DISCORD_CLIENT_ID
+        value: "1517984369120378980"
+      - key: DISCORD_GUILD_ID
         sync: false
       - key: MONGODB_URI
         sync: false
