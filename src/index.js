@@ -1,0 +1,69 @@
+require('dotenv').config();
+
+const { Client, Events, GatewayIntentBits } = require('discord.js');
+const { connectDatabase, seedDefaultHouses } = require('./config/database');
+const { loadCommands } = require('./handlers/commandHandler');
+
+const token = process.env.DISCORD_TOKEN;
+
+if (!token) {
+  console.error('Defina DISCORD_TOKEN no arquivo .env');
+  process.exit(1);
+}
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds],
+});
+
+const commands = loadCommands();
+
+client.once(Events.ClientReady, (readyClient) => {
+  console.log(`[Sete] O Sete despertou como ${readyClient.user.tag}`);
+});
+
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isAutocomplete()) {
+    const command = commands.get(interaction.commandName);
+    if (!command?.autocomplete) return;
+
+    try {
+      await command.autocomplete(interaction);
+    } catch (error) {
+      console.error(`Erro no autocomplete de /${interaction.commandName}:`, error);
+    }
+    return;
+  }
+
+  if (!interaction.isChatInputCommand()) return;
+
+  const command = commands.get(interaction.commandName);
+  if (!command) return;
+
+  try {
+    await command.execute(interaction);
+  } catch (error) {
+    console.error(`Erro ao executar /${interaction.commandName}:`, error);
+
+    const reply = {
+      content: '❌ Ocorreu um erro ao executar este comando. Tente novamente.',
+      ephemeral: true,
+    };
+
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(reply);
+    } else {
+      await interaction.reply(reply);
+    }
+  }
+});
+
+async function start() {
+  await connectDatabase();
+  await seedDefaultHouses();
+  await client.login(token);
+}
+
+start().catch((error) => {
+  console.error('[Sete] Falha ao iniciar:', error);
+  process.exit(1);
+});

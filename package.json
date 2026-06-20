@@ -1,0 +1,25 @@
+{
+  "name": "sete-bot",
+  "version": "1.0.0",
+  "description": "Sete — bot de Discord ambientado em Game of Thrones",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy-commands": "node src/deploy-commands.js",
+    "dev": "node --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "game-of-thrones"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.5.0",
+    "mongoose": "^8.16.0"
+  }
+}
