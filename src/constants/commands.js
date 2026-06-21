@@ -70,6 +70,10 @@ const COMMAND_CATALOG = {
       name: 'falar',
       description: 'Faz o Sete proclamar uma mensagem no canal.',
     },
+    {
+      name: 'embed',
+      description: 'Publica mensagem customizada em embed (título, corpo, cor, imagem e rodapé).',
+    },
   ],
 };
 

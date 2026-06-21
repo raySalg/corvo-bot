@@ -15,4 +15,25 @@ function randomEmbedColor() {
   return EMBED_COLORS[Math.floor(Math.random() * EMBED_COLORS.length)];
 }
 
-module.exports = { randomEmbedColor };
+function parseEmbedColor(input) {
+  const trimmed = input.trim();
+
+  const rgbMatch = trimmed.match(/^(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})$/);
+  if (rgbMatch) {
+    const channels = rgbMatch.slice(1).map(Number);
+    if (channels.some((value) => value < 0 || value > 255)) {
+      throw new Error('Cada canal RGB deve estar entre 0 e 255.');
+    }
+    const [r, g, b] = channels;
+    return (r << 16) + (g << 8) + b;
+  }
+
+  const hex = trimmed.startsWith('#') ? trimmed.slice(1) : trimmed;
+  if (/^[0-9a-fA-F]{6}$/.test(hex)) {
+    return parseInt(hex, 16);
+  }
+
+  throw new Error('Use RGB (ex: 255,0,0) ou hexadecimal (ex: #FF0000).');
+}
+
+module.exports = { randomEmbedColor, parseEmbedColor };
