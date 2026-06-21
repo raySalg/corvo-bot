@@ -3,8 +3,10 @@ const {
   PermissionFlagsBits,
 } = require('discord.js');
 const House = require('../../models/House');
-const { HOUSE_LEVELS, HOUSE_LEVEL_LABELS } = require('../../constants/houses');
+const { HOUSE_LEVELS, getHouseLevelLabel, isWesterosGovernante } = require('../../constants/houses');
 const { requireAdmin } = require('../../utils/permissions');
+const { autocompleteHouses } = require('../../utils/houseDisplay');
+const { getWorldState } = require('../../services/worldService');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -24,26 +26,14 @@ module.exports = {
         .setDescription('Nova classificação')
         .setRequired(true)
         .addChoices(
-          { name: 'Casa Dominante (Imperador)', value: HOUSE_LEVELS.DOMINANTE },
-          { name: 'Casa Soberana (Rei)', value: HOUSE_LEVELS.MAIOR },
-          { name: 'Casa Vassala', value: HOUSE_LEVELS.MENOR },
+          { name: 'Governante', value: HOUSE_LEVELS.GOVERNANTE },
+          { name: 'Soberano', value: HOUSE_LEVELS.SOBERANO },
+          { name: 'Vassala', value: HOUSE_LEVELS.MENOR },
         ),
     ),
 
   async autocomplete(interaction) {
-    const focused = interaction.options.getFocused().toLowerCase();
-    const houses = await House.find({
-      name: { $regex: focused, $options: 'i' },
-    })
-      .limit(25)
-      .select('name slug');
-
-    await interaction.respond(
-      houses.map((house) => ({
-        name: house.name,
-        value: house.slug,
-      })),
-    );
+    await autocompleteHouses(interaction);
   },
 
   async execute(interaction) {
@@ -61,21 +51,31 @@ module.exports = {
       return;
     }
 
-    if (newLevel === HOUSE_LEVELS.DOMINANTE && house.level !== HOUSE_LEVELS.DOMINANTE) {
-      const dominantHouse = await House.findOne({ level: HOUSE_LEVELS.DOMINANTE });
-      if (dominantHouse) {
+    if (
+      newLevel === HOUSE_LEVELS.GOVERNANTE &&
+      !house.independent &&
+      !isWesterosGovernante(house)
+    ) {
+      const world = await getWorldState();
+      const current = await House.findOne({ slug: world.governanteWesterosSlug });
+      if (current && current._id.toString() !== house._id.toString()) {
         await interaction.reply({
           content:
-            '### Trono imperial ocupado\n' +
-            `**${dominantHouse.name}** já é a Casa Dominante. Altere o nível dela primeiro.`,
+            '### Governante de Westeros já definido\n' +
+            `**${current.name}** já governa Westeros. Use **/regiao-independente** para elevar uma casa regional independente.`,
           ephemeral: true,
         });
         return;
       }
     }
 
-    const previousLevel = house.level;
+    const previousLabel = getHouseLevelLabel(house);
     house.level = newLevel;
+
+    if (newLevel !== HOUSE_LEVELS.GOVERNANTE) {
+      house.independent = false;
+    }
+
     await house.save();
 
     await interaction.reply({
@@ -83,8 +83,8 @@ module.exports = {
         '### Classificação alterada',
         `A casa **${house.name}** mudou de nível.`,
         '',
-        `**Antes:** ${HOUSE_LEVEL_LABELS[previousLevel]}`,
-        `**Agora:** ${HOUSE_LEVEL_LABELS[newLevel]}`,
+        `**Antes:** ${previousLabel}`,
+        `**Agora:** ${getHouseLevelLabel(house)}`,
       ].join('\n'),
     });
   },

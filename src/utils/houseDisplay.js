@@ -1,23 +1,19 @@
 const House = require('../models/House');
-const { REGION_LABELS } = require('../constants/regions');
-const { HOUSE_LEVEL_LABELS } = require('../constants/houses');
+const { getRegionLabel } = require('../constants/regions');
+const { getHouseLevelLabel } = require('../constants/houses');
 const { getVacancyIndicator, getVacancyLabel } = require('./houseStatus');
 
-async function autocompleteHouses(interaction, { excludeDominant = false } = {}) {
+async function autocompleteHouses(interaction) {
   const focused = interaction.options.getFocused().toLowerCase();
-  const query = {
+  const houses = await House.find({
     name: { $regex: focused, $options: 'i' },
-  };
-
-  if (excludeDominant) {
-    query.level = { $ne: 'dominante' };
-  }
-
-  const houses = await House.find(query).limit(25).select('name slug region level goldDragons');
+  })
+    .limit(25)
+    .select('name slug region level independent');
 
   await interaction.respond(
     houses.map((house) => ({
-      name: `${house.name} (${REGION_LABELS[house.region]})`,
+      name: `${house.name} (${getRegionLabel(house.region)})`,
       value: house.slug,
     })),
   );
@@ -26,20 +22,22 @@ async function autocompleteHouses(interaction, { excludeDominant = false } = {})
 function formatHouseLine(house) {
   const indicator = getVacancyIndicator(house);
   const vacancies = getVacancyLabel(house);
-  const level = HOUSE_LEVEL_LABELS[house.level] ?? house.level;
+  const level = getHouseLevelLabel(house);
   return `${indicator} **${house.name}** — ${vacancies} · ${level}`;
 }
 
-function buildRegionSection(houses, region) {
+function buildRegionSection(houses) {
   if (houses.length === 0) return null;
 
-  const sovereign = houses.find((house) => house.level === 'maior' || house.level === 'dominante');
+  const ruler = houses.find((house) =>
+    ['governante', 'soberano', 'dominante', 'maior', 'dominante-regional'].includes(house.level),
+  );
   const vassals = houses.filter((house) => house.level === 'menor');
 
   const lines = [];
 
-  if (sovereign) {
-    lines.push(formatHouseLine(sovereign));
+  if (ruler) {
+    lines.push(formatHouseLine(ruler));
   }
 
   if (vassals.length > 0) {

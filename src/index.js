@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const { Client, Events, GatewayIntentBits } = require('discord.js');
-const { connectDatabase, seedDefaultHouses } = require('./config/database');
+const { connectDatabase, seedDefaultHouses, seedWorldState } = require('./config/database');
 const { loadCommands } = require('./handlers/commandHandler');
 const { startKeepAliveServer } = require('./server/keepAlive');
 
@@ -87,6 +87,7 @@ async function start() {
   startKeepAliveServer();
   await connectDatabase();
   await seedDefaultHouses();
+  await seedWorldState();
   await client.login(token);
 }
 

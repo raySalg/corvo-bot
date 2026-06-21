@@ -1,23 +1,35 @@
 const { REGIONS } = require('./regions');
 
 const HOUSE_LEVELS = {
-  DOMINANTE: 'dominante',
-  MAIOR: 'maior',
+  GOVERNANTE: 'governante',
+  SOBERANO: 'soberano',
   MENOR: 'menor',
 };
 
+const LEGACY_LEVELS = {
+  DOMINANTE: 'dominante',
+  MAIOR: 'maior',
+  DOMINANTE_REGIONAL: 'dominante-regional',
+};
+
 const HOUSE_LEVEL_LABELS = {
-  [HOUSE_LEVELS.DOMINANTE]: 'Casa Dominante (Imperador)',
-  [HOUSE_LEVELS.MAIOR]: 'Casa Soberana (Rei)',
-  [HOUSE_LEVELS.MENOR]: 'Casa Vassala',
+  [HOUSE_LEVELS.GOVERNANTE]: 'Governante',
+  [HOUSE_LEVELS.SOBERANO]: 'Soberano',
+  [HOUSE_LEVELS.MENOR]: 'Vassala',
 };
 
 const DEFAULT_MAX_MEMBERS = 3;
+const WESTEROS_GOVERNANTE_SLUG = 'targaryen-porto-real';
 
-const DOMINANT_HOUSE_SLUG = 'targaryen-porto-real';
-
-function house(name, slug, level, region) {
-  return { name, slug, level, region, maxMembers: DEFAULT_MAX_MEMBERS };
+function house(name, slug, level, region, { independent = false } = {}) {
+  return {
+    name,
+    slug,
+    level,
+    region,
+    maxMembers: DEFAULT_MAX_MEMBERS,
+    independent,
+  };
 }
 
 const REGION_SETUP = [
@@ -68,7 +80,7 @@ const REGION_SETUP = [
   },
   {
     region: REGIONS.TERRAS_COROA,
-    sovereign: { name: 'Targaryen de Porto Real', slug: DOMINANT_HOUSE_SLUG },
+    sovereign: { name: 'Targaryen de Porto Real', slug: WESTEROS_GOVERNANTE_SLUG },
     vassals: [
       { name: 'Rosby', slug: 'rosby' },
       { name: 'Darklyn', slug: 'darklyn' },
@@ -96,6 +108,7 @@ const REGION_SETUP = [
   {
     region: REGIONS.DORNE,
     sovereign: { name: 'Martell', slug: 'martell' },
+    sovereignIndependent: true,
     vassals: [
       { name: 'Dayne', slug: 'dayne' },
       { name: 'Uller', slug: 'uller' },
@@ -113,19 +126,44 @@ const REGION_SETUP = [
   },
 ];
 
-const DEFAULT_HOUSES = REGION_SETUP.flatMap(({ region, sovereign, vassals }) => {
-  const level = sovereign.slug === DOMINANT_HOUSE_SLUG ? HOUSE_LEVELS.DOMINANTE : HOUSE_LEVELS.MAIOR;
+const DEFAULT_HOUSES = REGION_SETUP.flatMap(({ region, sovereign, vassals, sovereignIndependent = false }) => {
+  const isWesterosGovernante = sovereign.slug === WESTEROS_GOVERNANTE_SLUG;
+  const sovereignLevel = isWesterosGovernante || sovereignIndependent
+    ? HOUSE_LEVELS.GOVERNANTE
+    : HOUSE_LEVELS.SOBERANO;
 
   return [
-    house(sovereign.name, sovereign.slug, level, region),
+    house(sovereign.name, sovereign.slug, sovereignLevel, region, {
+      independent: sovereignIndependent,
+    }),
     ...vassals.map((vassal) => house(vassal.name, vassal.slug, HOUSE_LEVELS.MENOR, region)),
   ];
 });
 
+function getHouseLevelLabel(house) {
+  if (house.slug === WESTEROS_GOVERNANTE_SLUG) {
+    return 'Governante de Westeros';
+  }
+
+  if (house.level === HOUSE_LEVELS.GOVERNANTE && house.independent) {
+    const { getRegionLabel } = require('./regions');
+    return `Governante (${getRegionLabel(house.region)})`;
+  }
+
+  return HOUSE_LEVEL_LABELS[house.level] ?? house.level;
+}
+
+function isWesterosGovernante(house) {
+  return house?.slug === WESTEROS_GOVERNANTE_SLUG;
+}
+
 module.exports = {
   HOUSE_LEVELS,
+  LEGACY_LEVELS,
   HOUSE_LEVEL_LABELS,
   DEFAULT_MAX_MEMBERS,
-  DOMINANT_HOUSE_SLUG,
+  WESTEROS_GOVERNANTE_SLUG,
   DEFAULT_HOUSES,
+  getHouseLevelLabel,
+  isWesterosGovernante,
 };

@@ -59,6 +59,23 @@ async function connectDatabase() {
   }
 }
 
+async function migrateHouseLevels(House) {
+  await House.updateMany({ level: 'dominante' }, { $set: { level: 'governante' } });
+  await House.updateMany(
+    { level: 'dominante-regional' },
+    { $set: { level: 'governante', independent: true } },
+  );
+  await House.updateMany({ level: 'maior' }, { $set: { level: 'soberano' } });
+  await House.updateOne(
+    { slug: 'martell' },
+    { $set: { level: 'governante', independent: true } },
+  );
+  await House.updateOne(
+    { slug: 'targaryen-porto-real' },
+    { $set: { level: 'governante', independent: false } },
+  );
+}
+
 async function upsertDefaultHouse(House, house, resetMembers = false) {
   await removeHouseConflicts(House, house);
 
@@ -67,6 +84,7 @@ async function upsertDefaultHouse(House, house, resetMembers = false) {
     level: house.level,
     region: house.region,
     maxMembers: house.maxMembers,
+    independent: house.independent ?? false,
   };
 
   if (resetMembers) {
@@ -113,6 +131,8 @@ async function upsertDefaultHouse(House, house, resetMembers = false) {
 async function seedDefaultHouses() {
   const House = require('../models/House');
 
+  await migrateHouseLevels(House);
+
   const obsoleteResult = await House.deleteMany({ slug: { $in: OBSOLETE_SLUGS } });
   if (obsoleteResult.deletedCount > 0) {
     console.log(`[Sete] Migração: removida(s) ${obsoleteResult.deletedCount} casa(s) obsoleta(s).`);
@@ -127,6 +147,7 @@ async function seedDefaultHouses() {
 
 async function resetAllHouses() {
   const House = require('../models/House');
+  const { resetWorldState } = require('../services/worldService');
 
   await House.deleteMany({});
 
@@ -137,13 +158,27 @@ async function resetAllHouses() {
       level: house.level,
       region: house.region,
       maxMembers: house.maxMembers,
+      independent: house.independent ?? false,
       goldDragons: 0,
       lordId: null,
       members: [],
     })),
   );
 
+  await resetWorldState();
+
   console.log('[Sete] Todas as casas foram reiniciadas.');
 }
 
-module.exports = { connectDatabase, seedDefaultHouses, resetAllHouses };
+async function seedWorldState() {
+  const { getWorldState } = require('../services/worldService');
+  await getWorldState();
+  console.log('[Sete] Status de Westeros verificado.');
+}
+
+module.exports = {
+  connectDatabase,
+  seedDefaultHouses,
+  resetAllHouses,
+  seedWorldState,
+};

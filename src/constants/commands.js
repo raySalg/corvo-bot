@@ -5,8 +5,12 @@ const COMMAND_CATALOG = {
       description: 'Lista todos os comandos disponíveis do Sete.',
     },
     {
+      name: 'westeros',
+      description: 'Exibe quem governa Westeros e o status político do reino.',
+    },
+    {
       name: 'casas',
-      description: 'Exibe as casas por região, com botões para navegar.',
+      description: 'Exibe Governante, casas independentes e regiões.',
     },
     {
       name: 'escolher-casa',
@@ -23,12 +27,20 @@ const COMMAND_CATALOG = {
   ],
   admin: [
     {
+      name: 'editar-westeros',
+      description: 'Edita status, conflitos, Governante e submissão de regiões.',
+    },
+    {
+      name: 'regiao-independente',
+      description: 'Declara região independente com Casa Governante regional.',
+    },
+    {
       name: 'criar-casa',
-      description: 'Fundar uma nova casa com região, nível e limite.',
+      description: 'Fundar casa com região (ou sem terras), nível e limite.',
     },
     {
       name: 'editar-casa',
-      description: 'Editar nome, limite, nível ou região de uma casa.',
+      description: 'Editar nome, limite, nível, região ou independência.',
     },
     {
       name: 'deletar-casa',
@@ -36,7 +48,7 @@ const COMMAND_CATALOG = {
     },
     {
       name: 'alterar-nivel-casa',
-      description: 'Alterar o nível de uma casa (Imperador, Rei ou Vassala).',
+      description: 'Alterar classificação entre Governante, Soberano ou Vassala.',
     },
     {
       name: 'economia-alterar',

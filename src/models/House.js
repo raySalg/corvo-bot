@@ -1,20 +1,23 @@
 const mongoose = require('mongoose');
 const { REGIONS } = require('../constants/regions');
 
+const ALL_REGIONS = [...Object.values(REGIONS)];
+
 const houseSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, unique: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
     region: {
       type: String,
-      enum: Object.values(REGIONS),
+      enum: ALL_REGIONS,
       required: true,
     },
     level: {
       type: String,
-      enum: ['dominante', 'maior', 'menor'],
+      enum: ['governante', 'soberano', 'menor', 'dominante', 'maior', 'dominante-regional'],
       default: 'menor',
     },
+    independent: { type: Boolean, default: false },
     maxMembers: { type: Number, required: true, min: 1, default: 3 },
     goldDragons: { type: Number, default: 0 },
     lordId: { type: String, default: null },

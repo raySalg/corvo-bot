@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const House = require('../models/House');
-const { REGION_LABELS } = require('../constants/regions');
-const { HOUSE_LEVEL_LABELS } = require('../constants/houses');
+const { getRegionLabel } = require('../constants/regions');
+const { getHouseLevelLabel } = require('../constants/houses');
 const { autocompleteHouses } = require('../utils/houseDisplay');
 const { formatMemberList, SILENT_MENTIONS } = require('../utils/houseMembers');
 const { randomEmbedColor } = require('../utils/embed');
@@ -39,8 +39,9 @@ module.exports = {
       .setTitle(`Membros — ${house.name}`)
       .setDescription(
         '## Composição da Casa\n' +
-          `**Região:** ${REGION_LABELS[house.region]}\n` +
-          `**Classificação:** ${HOUSE_LEVEL_LABELS[house.level]}\n` +
+          `**Região:** ${getRegionLabel(house.region)}\n` +
+          `**Classificação:** ${getHouseLevelLabel(house)}\n` +
+          `**Independente:** ${house.independent ? 'Sim' : 'Não'}\n` +
           `**Ocupação:** ${house.memberCount}/${house.maxMembers}\n\n` +
           formatMemberList(house),
       )

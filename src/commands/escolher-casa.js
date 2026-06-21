@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const House = require('../models/House');
-const { HOUSE_LEVEL_LABELS } = require('../constants/houses');
-const { REGION_LABELS } = require('../constants/regions');
+const { getHouseLevelLabel } = require('../constants/houses');
+const { getRegionLabel } = require('../constants/regions');
 const { autocompleteHouses } = require('../utils/houseDisplay');
 const { findUserHouse } = require('../utils/houseMembers');
 
@@ -92,8 +92,8 @@ module.exports = {
       await interaction.reply({
         content:
           '### Nomeação confirmada\n' +
-          `Você foi nomeado **Senhor(a)** da casa **${house.name}** (${REGION_LABELS[house.region]}).\n` +
-          `Classificação: **${HOUSE_LEVEL_LABELS[house.level]}**`,
+          `Você foi nomeado **Senhor(a)** da casa **${house.name}** (${getRegionLabel(house.region)}).\n` +
+          `Classificação: **${getHouseLevelLabel(house)}**`,
       });
       return;
     }
@@ -114,8 +114,8 @@ module.exports = {
     await interaction.reply({
       content:
         '### Lealdade jurada\n' +
-        `Você jurou lealdade à casa **${house.name}** (${REGION_LABELS[house.region]}) como **membro**.\n` +
-        `Classificação: **${HOUSE_LEVEL_LABELS[house.level]}**`,
+        `Você jurou lealdade à casa **${house.name}** (${getRegionLabel(house.region)}) como **membro**.\n` +
+        `Classificação: **${getHouseLevelLabel(house)}**`,
     });
   },
 };

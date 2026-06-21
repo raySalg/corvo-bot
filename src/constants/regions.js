@@ -9,6 +9,7 @@ const REGIONS = {
   TERRAS_TEMPESTADE: 'terras-da-tempestade',
   DORNE: 'dorne',
   CAMPINA: 'campina',
+  SEM_TERRAS: 'sem-terras',
 };
 
 const REGION_LABELS = {
@@ -22,19 +23,7 @@ const REGION_LABELS = {
   [REGIONS.TERRAS_TEMPESTADE]: 'Terras da Tempestade',
   [REGIONS.DORNE]: 'Dorne',
   [REGIONS.CAMPINA]: 'Campina',
-};
-
-const REGION_EMOJIS = {
-  [REGIONS.NORTE]: '❄️',
-  [REGIONS.OCIDENTE]: '🦁',
-  [REGIONS.ILHAS_FERRO]: '⚓',
-  [REGIONS.TERRAS_FLUVIAIS]: '🐟',
-  [REGIONS.VALE]: '🦅',
-  [REGIONS.TERRAS_COROA]: '👑',
-  [REGIONS.PEDRA_DRAGAO]: '🐉',
-  [REGIONS.TERRAS_TEMPESTADE]: '⚡',
-  [REGIONS.DORNE]: '☀️',
-  [REGIONS.CAMPINA]: '🌹',
+  [REGIONS.SEM_TERRAS]: 'Casa sem Terras',
 };
 
 const REGION_ORDER = [
@@ -50,17 +39,35 @@ const REGION_ORDER = [
   REGIONS.CAMPINA,
 ];
 
-function getRegionChoices() {
-  return REGION_ORDER.map((region) => ({
+function getRegionLabel(region) {
+  return REGION_LABELS[region] ?? region;
+}
+
+function getRegionChoices({ includeSemTerras = true } = {}) {
+  const choices = REGION_ORDER.map((region) => ({
     name: REGION_LABELS[region],
     value: region,
   }));
+
+  if (includeSemTerras) {
+    choices.push({
+      name: REGION_LABELS[REGIONS.SEM_TERRAS],
+      value: REGIONS.SEM_TERRAS,
+    });
+  }
+
+  return choices;
+}
+
+function getPlayableRegionChoices() {
+  return getRegionChoices({ includeSemTerras: false });
 }
 
 module.exports = {
   REGIONS,
   REGION_LABELS,
-  REGION_EMOJIS,
   REGION_ORDER,
+  getRegionLabel,
   getRegionChoices,
+  getPlayableRegionChoices,
 };

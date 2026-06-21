@@ -3,10 +3,15 @@ const {
   PermissionFlagsBits,
 } = require('discord.js');
 const House = require('../../models/House');
-const { HOUSE_LEVELS, HOUSE_LEVEL_LABELS } = require('../../constants/houses');
-const { REGION_LABELS, getRegionChoices } = require('../../constants/regions');
+const {
+  HOUSE_LEVELS,
+  getHouseLevelLabel,
+  isWesterosGovernante,
+} = require('../../constants/houses');
+const { getRegionLabel, getRegionChoices } = require('../../constants/regions');
 const { requireAdmin, slugify } = require('../../utils/permissions');
 const { autocompleteHouses } = require('../../utils/houseDisplay');
+const { getWorldState } = require('../../services/worldService');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -40,9 +45,9 @@ module.exports = {
         .setDescription('Nova classificação')
         .setRequired(false)
         .addChoices(
-          { name: 'Casa Dominante (Imperador)', value: HOUSE_LEVELS.DOMINANTE },
-          { name: 'Casa Soberana (Rei)', value: HOUSE_LEVELS.MAIOR },
-          { name: 'Casa Vassala', value: HOUSE_LEVELS.MENOR },
+          { name: 'Governante', value: HOUSE_LEVELS.GOVERNANTE },
+          { name: 'Soberano', value: HOUSE_LEVELS.SOBERANO },
+          { name: 'Vassala', value: HOUSE_LEVELS.MENOR },
         ),
     )
     .addStringOption((option) =>
@@ -51,6 +56,16 @@ module.exports = {
         .setDescription('Nova região')
         .setRequired(false)
         .addChoices(...getRegionChoices()),
+    )
+    .addStringOption((option) =>
+      option
+        .setName('independente')
+        .setDescription('Independência em relação ao Governante de Westeros')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Sim', value: 'sim' },
+          { name: 'Não', value: 'nao' },
+        ),
     ),
 
   async autocomplete(interaction) {
@@ -65,10 +80,13 @@ module.exports = {
     const newLimit = interaction.options.getInteger('limite');
     const newLevel = interaction.options.getString('nivel');
     const newRegion = interaction.options.getString('regiao');
+    const newIndependent = interaction.options.getString('independente');
 
-    if (!newName && !newLimit && !newLevel && !newRegion) {
+    if (!newName && !newLimit && !newLevel && !newRegion && !newIndependent) {
       await interaction.reply({
-        content: '### Nada para editar\nInforme ao menos um campo: **nome**, **limite**, **nivel** ou **regiao**.',
+        content:
+          '### Nada para editar\n' +
+          'Informe ao menos um campo: **nome**, **limite**, **nivel**, **regiao** ou **independente**.',
         ephemeral: true,
       });
       return;
@@ -84,6 +102,7 @@ module.exports = {
     }
 
     const changes = [];
+    const previousLabel = getHouseLevelLabel(house);
 
     if (newName) {
       const trimmedName = newName.trim();
@@ -131,30 +150,49 @@ module.exports = {
     }
 
     if (newLevel) {
-      if (newLevel === HOUSE_LEVELS.DOMINANTE && house.level !== HOUSE_LEVELS.DOMINANTE) {
-        const dominantHouse = await House.findOne({
-          level: HOUSE_LEVELS.DOMINANTE,
-          _id: { $ne: house._id },
-        });
-
-        if (dominantHouse) {
+      if (newLevel === HOUSE_LEVELS.GOVERNANTE && !house.independent && !isWesterosGovernante(house)) {
+        const world = await getWorldState();
+        const current = await House.findOne({ slug: world.governanteWesterosSlug });
+        if (current && current._id.toString() !== house._id.toString()) {
           await interaction.reply({
             content:
-              '### Trono imperial ocupado\n' +
-              `**${dominantHouse.name}** já é a Casa Dominante.`,
+              '### Governante de Westeros já definido\n' +
+              `**${current.name}** já governa Westeros. Use **/regiao-independente** para independência regional.`,
             ephemeral: true,
           });
           return;
         }
       }
 
-      changes.push(`**Nível:** ${HOUSE_LEVEL_LABELS[house.level]} → **${HOUSE_LEVEL_LABELS[newLevel]}**`);
+      changes.push(`**Nível:** ${previousLabel} → **${getHouseLevelLabel({ ...house.toObject(), level: newLevel })}**`);
       house.level = newLevel;
     }
 
     if (newRegion) {
-      changes.push(`**Região:** ${REGION_LABELS[house.region]} → **${REGION_LABELS[newRegion]}**`);
+      changes.push(`**Região:** ${getRegionLabel(house.region)} → **${getRegionLabel(newRegion)}**`);
       house.region = newRegion;
+    }
+
+    if (newIndependent) {
+      const independent = newIndependent === 'sim';
+      if (independent && house.level !== HOUSE_LEVELS.GOVERNANTE) {
+        await interaction.reply({
+          content: '### Opção inválida\nSomente casas **Governantes** podem ser independentes.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      if (isWesterosGovernante(house) && independent) {
+        await interaction.reply({
+          content: '### Opção inválida\nO Governante de Westeros não pode ser independente.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      changes.push(`**Independente:** ${house.independent ? 'Sim' : 'Não'} → **${independent ? 'Sim' : 'Não'}**`);
+      house.independent = independent;
     }
 
     await house.save();
