@@ -209,6 +209,7 @@ async function resetAllHouses() {
       taxRate: 0,
       incomeSource: '',
       economySeeded: false,
+      structures: [],
       lordId: null,
       members: [],
     })),

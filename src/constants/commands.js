@@ -33,6 +33,10 @@ const COMMAND_CATALOG = {
       description: 'Senhor da casa envia o Decreto Econômico (um por casa) via formulário.',
     },
     {
+      name: 'construir',
+      description: 'Senhor da casa ergue estruturas (custo imediato, rendimento anual).',
+    },
+    {
       name: 'alianca',
       description: 'Alianças comerciais: propor, aceitar, desfazer, listar e transferir D.O.',
     },
@@ -72,7 +76,11 @@ const COMMAND_CATALOG = {
     },
     {
       name: 'economia-ciclo',
-      description: 'Processa rendimentos, tributação e publica os decretos no canal.',
+      description: 'Avança o ano: rendimentos, estruturas, manutenção, tributos e decretos.',
+    },
+    {
+      name: 'economia-rank',
+      description: 'Ranking das casas por cofres ou rendimentos anuais.',
     },
     {
       name: 'economia-canais',

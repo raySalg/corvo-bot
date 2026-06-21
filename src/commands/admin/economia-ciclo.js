@@ -4,7 +4,6 @@ const {
   EmbedBuilder,
 } = require('discord.js');
 const House = require('../../models/House');
-const EconomyLog = require('../../models/EconomyLog');
 const { requireAdmin } = require('../../utils/permissions');
 const {
   runEconomyCycle,
@@ -12,8 +11,6 @@ const {
   clearDecrees,
 } = require('../../services/economyService');
 const { getWorldState } = require('../../services/worldService');
-const { generateDecreeNarration } = require('../../services/aiService');
-const { getRegionLabel } = require('../../constants/regions');
 const { randomEmbedColor } = require('../../utils/embed');
 
 const CONFIRMATION_TEXT = 'CONFIRMAR';
@@ -24,8 +21,8 @@ function formatGold(value) {
   return `${value.toLocaleString('pt-BR')} D.O.`;
 }
 
-function buildDecreeMessage({ decree, house, narration }) {
-  const lines = [
+function buildDecreeMessage({ decree, house }) {
+  return [
     BORDER,
     `> ${LAW_EMOJI} **—** Por ordem e autoridade do Senhor(a) <@${decree.authorId}>, ` +
       `a *Membro da casa ${house.name}*, fica formalizado o seguinte conjunto de diretrizes:`,
@@ -35,15 +32,8 @@ function buildDecreeMessage({ decree, house, narration }) {
     '### 🪙 BALANÇO FINANCEIRO',
     '',
     ` * 📊 **Total Gasto no Decreto:** **${decree.totalSpent.toLocaleString('pt-BR')}** DO`,
-  ];
-
-  if (narration) {
-    lines.push('', '### 📜 Crônica do Meistre', '', narration);
-  }
-
-  lines.push(BORDER);
-
-  return lines.join('\n');
+    BORDER,
+  ].join('\n');
 }
 
 async function sendInChunks(channel, text) {
@@ -72,11 +62,11 @@ async function publishDecrees(interaction) {
   const decrees = await getPendingDecrees();
 
   if (decrees.length === 0) {
-    return { posted: 0, spentTotal: 0, channelMissing: false };
+    return { posted: 0, channelMissing: false };
   }
 
   if (!world.decreeChannelId) {
-    return { posted: 0, spentTotal: 0, channelMissing: true, pending: decrees.length };
+    return { posted: 0, channelMissing: true, pending: decrees.length };
   }
 
   let channel;
@@ -87,58 +77,26 @@ async function publishDecrees(interaction) {
   }
 
   if (!channel || typeof channel.send !== 'function') {
-    return { posted: 0, spentTotal: 0, channelMissing: true, pending: decrees.length };
+    return { posted: 0, channelMissing: true, pending: decrees.length };
   }
 
   let posted = 0;
-  let spentTotal = 0;
-
   for (const decree of decrees) {
     const house = await House.findOne({ slug: decree.houseSlug });
     if (!house) continue;
 
-    const spent = Math.min(decree.totalSpent, house.goldDragons);
-    if (spent > 0) {
-      house.goldDragons -= spent;
-      await house.save();
-      spentTotal += spent;
-    }
-
-    await EconomyLog.create({
-      type: 'admin',
-      houseSlug: house.slug,
-      amount: -spent,
-      actorId: decree.authorId,
-      detail: `Decreto econômico aplicado: -${spent} D.O.`,
-    });
-
-    let narration = null;
-    try {
-      narration = await generateDecreeNarration({
-        houseName: house.name,
-        regionLabel: getRegionLabel(house.region),
-        authorName: `Senhor de ${house.name}`,
-        content: decree.content,
-        totalSpent: decree.totalSpent,
-      });
-    } catch {
-      narration = null;
-    }
-
-    const message = buildDecreeMessage({ decree, house, narration });
-    await sendInChunks(channel, message);
+    await sendInChunks(channel, buildDecreeMessage({ decree, house }));
     posted += 1;
   }
 
   await clearDecrees();
-
-  return { posted, spentTotal, channelMissing: false };
+  return { posted, channelMissing: false };
 }
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('economia-ciclo')
-    .setDescription('Processa o ciclo: rendimentos, tributação e publicação dos decretos (admin).')
+    .setDescription('Processa o ano: rendimentos, estruturas, manutenção, tributos e decretos (admin).')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption((option) =>
       option
@@ -156,8 +114,8 @@ module.exports = {
       await interaction.reply({
         content:
           '### Confirmação necessária\n' +
-          'Este comando credita o **rendimento anual**, coleta os **tributos** ' +
-          '(vassala → suserano → Coroa) e publica os **decretos** dos jogadores no canal definido.\n\n' +
+          'Este comando avança um ano: credita rendimentos (base + estruturas), cobra a **manutenção** ' +
+          'das estruturas, coleta os **tributos** (vassala → suserano → Coroa) e publica os **decretos**.\n\n' +
           `Para confirmar, use \`confirmacao: ${CONFIRMATION_TEXT}\` (sem aspas).`,
         ephemeral: true,
       });
@@ -172,15 +130,16 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setColor(randomEmbedColor())
-        .setTitle('Ciclo econômico')
+        .setTitle(`Ciclo econômico — Ano ${report.year}`)
         .setDescription('Os cofres do reino foram atualizados.')
         .addFields(
-          { name: 'Rendimento creditado', value: formatGold(report.incomeTotal), inline: true },
+          { name: 'Rendimento base', value: formatGold(report.baseIncomeTotal), inline: true },
+          { name: 'Rendimento de estruturas', value: formatGold(report.structureIncomeTotal), inline: true },
+          { name: 'Manutenção paga', value: formatGold(report.maintenanceTotal), inline: true },
           { name: 'Tributos regionais', value: formatGold(report.taxToSuzerains), inline: true },
           { name: 'Arrecadação da Coroa', value: formatGold(report.taxToCrown), inline: true },
+          { name: 'Estruturas sucateadas', value: `${report.impairedTotal}`, inline: true },
           { name: 'Decretos publicados', value: `${decreeResult.posted}`, inline: true },
-          { name: 'Gasto em decretos', value: formatGold(decreeResult.spentTotal), inline: true },
-          { name: 'Casas processadas', value: `${report.houseCount}`, inline: true },
         )
         .setTimestamp();
 

@@ -13,6 +13,7 @@ const worldStateSchema = new mongoose.Schema(
     conflictHouseSlugs: [{ type: String }],
     decreeChannelId: { type: String, default: null },
     allianceChannelId: { type: String, default: null },
+    currentYear: { type: Number, default: 1 },
   },
   { timestamps: true },
 );

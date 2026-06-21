@@ -24,6 +24,13 @@ const houseSchema = new mongoose.Schema(
     taxRate: { type: Number, default: 0, min: 0, max: 1 },
     incomeSource: { type: String, default: '', trim: true },
     economySeeded: { type: Boolean, default: false },
+    structures: [
+      {
+        type: { type: String, required: true },
+        lastMaintainedYear: { type: Number, default: 1 },
+        impaired: { type: Boolean, default: false },
+      },
+    ],
     lordId: { type: String, default: null },
     members: [{ type: String }],
   },

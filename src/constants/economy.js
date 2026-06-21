@@ -11,6 +11,47 @@ function defaultTaxRateForLevel(level, { isCrown = false } = {}) {
   return 0;
 }
 
+const MAINTENANCE_INTERVAL_YEARS = 2;
+const MAINTENANCE_COST_RATE = 0.5;
+const IMPAIRMENT_FACTOR = 0.4;
+
+const STRUCTURE_CATALOG = {
+  'fazenda-pecuaria': { label: 'Fazenda Pecuária', sector: 'primario', cost: 200, annualIncome: 70 },
+  'fazenda-agricola': { label: 'Fazenda Agrícola', sector: 'primario', cost: 325, annualIncome: 115 },
+  vinhedo: { label: 'Vinhedo', sector: 'primario', cost: 325, annualIncome: 115 },
+  apicultura: { label: 'Apicultura', sector: 'primario', cost: 260, annualIncome: 90 },
+  estabulo: { label: 'Estábulo', sector: 'primario', cost: 245, annualIncome: 85 },
+  serraria: { label: 'Serraria', sector: 'primario', cost: 65, annualIncome: 25 },
+  pedreira: { label: 'Pedreira', sector: 'primario', cost: 65, annualIncome: 25 },
+  pomar: { label: 'Pomar', sector: 'primario', cost: 285, annualIncome: 100 },
+  olival: { label: 'Olival', sector: 'primario', cost: 325, annualIncome: 115 },
+  salinas: { label: 'Salinas', sector: 'primario', cost: 455, annualIncome: 160 },
+  'mina-ferro': { label: 'Mina de Ferro', sector: 'primario', cost: 520, annualIncome: 180 },
+  'mina-cobre': { label: 'Mina de Cobre', sector: 'primario', cost: 455, annualIncome: 160 },
+  'mina-prata': { label: 'Mina de Prata', sector: 'primario', cost: 910, annualIncome: 320 },
+  'mina-ouro': { label: 'Mina de Ouro', sector: 'primario', cost: 1300, annualIncome: 455 },
+
+  tecelagem: { label: 'Tecelagem', sector: 'secundario', cost: 170, annualIncome: 60 },
+  couraria: { label: 'Couraria', sector: 'secundario', cost: 65, annualIncome: 25 },
+  cervejaria: { label: 'Cervejaria', sector: 'secundario', cost: 195, annualIncome: 70 },
+  joalheria: { label: 'Joalheria', sector: 'secundario', cost: 520, annualIncome: 180 },
+  ferraria: { label: 'Ferraria', sector: 'secundario', cost: 325, annualIncome: 115 },
+  fundicao: { label: 'Fundição', sector: 'secundario', cost: 650, annualIncome: 230 },
+  carpintaria: { label: 'Carpintaria', sector: 'secundario', cost: 235, annualIncome: 80 },
+  marmoraria: { label: 'Marmoraria', sector: 'secundario', cost: 455, annualIncome: 160 },
+};
+
+function getStructure(type) {
+  return STRUCTURE_CATALOG[type] ?? null;
+}
+
+function getStructureChoices() {
+  return Object.entries(STRUCTURE_CATALOG).map(([value, data]) => ({
+    name: `${data.label} — ${data.cost.toLocaleString('pt-BR')} D.O. (+${data.annualIncome}/ano)`.slice(0, 100),
+    value,
+  }));
+}
+
 const HOUSE_ECONOMY_SEED = {
   stark: { vault: 92000, annualIncome: 10500 },
   bolton: { vault: 52000, annualIncome: 5500 },
@@ -68,4 +109,10 @@ module.exports = {
   DEFAULT_CROWN_TAX_RATE,
   HOUSE_ECONOMY_SEED,
   defaultTaxRateForLevel,
+  STRUCTURE_CATALOG,
+  MAINTENANCE_INTERVAL_YEARS,
+  MAINTENANCE_COST_RATE,
+  IMPAIRMENT_FACTOR,
+  getStructure,
+  getStructureChoices,
 };

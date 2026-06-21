@@ -8,6 +8,12 @@ const {
   isWesterosGovernante,
 } = require('../constants/houses');
 const { REGIONS } = require('../constants/regions');
+const {
+  getStructure,
+  MAINTENANCE_INTERVAL_YEARS,
+  MAINTENANCE_COST_RATE,
+  IMPAIRMENT_FACTOR,
+} = require('../constants/economy');
 
 function isRulerLevel(level) {
   return level === HOUSE_LEVELS.SOBERANO || level === HOUSE_LEVELS.GOVERNANTE;
@@ -147,12 +153,6 @@ async function submitDecree(house, { authorId, content, totalSpent }) {
     throw new Error('O total gasto deve ser um número inteiro maior ou igual a zero.');
   }
 
-  if (totalSpent > house.goldDragons) {
-    throw new Error(
-      `O total gasto (${totalSpent} D.O.) excede os cofres atuais da casa (${house.goldDragons} D.O.).`,
-    );
-  }
-
   const existing = await Decree.findOne({ houseSlug: house.slug });
   const replaced = Boolean(existing);
 
@@ -178,13 +178,102 @@ async function clearDecrees() {
   await Decree.deleteMany({});
 }
 
+function structureIncomeForHouse(house) {
+  if (!house.structures || house.structures.length === 0) return 0;
+  let total = 0;
+  for (const built of house.structures) {
+    const data = getStructure(built.type);
+    if (!data) continue;
+    total += built.impaired
+      ? Math.round(data.annualIncome * IMPAIRMENT_FACTOR)
+      : data.annualIncome;
+  }
+  return total;
+}
+
+function totalIncomeForHouse(house) {
+  return (house.annualIncome || 0) + structureIncomeForHouse(house);
+}
+
+async function buildStructure(house, type, quantity) {
+  const data = getStructure(type);
+  if (!data) {
+    throw new Error('Estrutura desconhecida.');
+  }
+
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    throw new Error('A quantidade deve ser um número inteiro positivo.');
+  }
+
+  const totalCost = data.cost * quantity;
+  if (house.goldDragons < totalCost) {
+    throw new Error(
+      `Cofres insuficientes: ${data.label} x${quantity} custa ${totalCost.toLocaleString('pt-BR')} D.O. ` +
+        `(disponível: ${house.goldDragons.toLocaleString('pt-BR')} D.O.).`,
+    );
+  }
+
+  const world = await getWorldState();
+  const year = world.currentYear || 1;
+
+  house.goldDragons -= totalCost;
+  for (let i = 0; i < quantity; i += 1) {
+    house.structures.push({ type, lastMaintainedYear: year, impaired: false });
+  }
+  await house.save();
+
+  await EconomyLog.create({
+    type: 'admin',
+    houseSlug: house.slug,
+    amount: -totalCost,
+    detail: `Construção: ${data.label} x${quantity} (-${totalCost} D.O.).`,
+  });
+
+  return { data, quantity, totalCost, addedIncome: data.annualIncome * quantity };
+}
+
+function applyMaintenance(house, year) {
+  let maintenancePaid = 0;
+  let impairedCount = 0;
+
+  for (const built of house.structures || []) {
+    const data = getStructure(built.type);
+    if (!data) continue;
+
+    const due = year - built.lastMaintainedYear >= MAINTENANCE_INTERVAL_YEARS;
+    if (!due) continue;
+
+    const maintCost = Math.round(data.cost * MAINTENANCE_COST_RATE);
+    if (house.goldDragons >= maintCost) {
+      house.goldDragons -= maintCost;
+      built.lastMaintainedYear = year;
+      built.impaired = false;
+      maintenancePaid += maintCost;
+    } else {
+      built.impaired = true;
+      impairedCount += 1;
+    }
+  }
+
+  return { maintenancePaid, impairedCount };
+}
+
 async function runEconomyCycle(actorId) {
   const houses = await House.find({});
   const bySlug = new Map(houses.map((house) => [house.slug, house]));
   const crown = await getWesterosGovernante();
 
+  const world = await getWorldState();
+  world.currentYear = (world.currentYear || 1) + 1;
+  const year = world.currentYear;
+  await world.save();
+
   const report = {
-    incomeTotal: 0,
+    year,
+    baseIncomeTotal: 0,
+    structureIncomeTotal: 0,
+    maintenanceTotal: 0,
+    impairedTotal: 0,
     taxToSuzerains: 0,
     taxToCrown: 0,
     houseCount: houses.length,
@@ -194,7 +283,17 @@ async function runEconomyCycle(actorId) {
   for (const house of houses) {
     if (house.annualIncome > 0) {
       house.goldDragons += house.annualIncome;
-      report.incomeTotal += house.annualIncome;
+      report.baseIncomeTotal += house.annualIncome;
+    }
+
+    const maintenance = applyMaintenance(house, year);
+    report.maintenanceTotal += maintenance.maintenancePaid;
+    report.impairedTotal += maintenance.impairedCount;
+
+    const structureIncome = structureIncomeForHouse(house);
+    if (structureIncome > 0) {
+      house.goldDragons += structureIncome;
+      report.structureIncomeTotal += structureIncome;
     }
   }
 
@@ -232,11 +331,10 @@ async function runEconomyCycle(actorId) {
   await EconomyLog.create({
     type: 'cycle',
     actorId,
-    amount: report.incomeTotal,
+    amount: report.baseIncomeTotal + report.structureIncomeTotal,
     detail:
-      `Ciclo anual: +${report.incomeTotal} D.O. de rendimento, ` +
-      `${report.taxToSuzerains} D.O. em tributos regionais e ` +
-      `${report.taxToCrown} D.O. à Coroa.`,
+      `Ciclo (ano ${year}): +${report.baseIncomeTotal} base, +${report.structureIncomeTotal} estruturas, ` +
+      `-${report.maintenanceTotal} manutenção, tributos ${report.taxToSuzerains}/${report.taxToCrown}.`,
   });
 
   return report;
@@ -255,5 +353,8 @@ module.exports = {
   submitDecree,
   getPendingDecrees,
   clearDecrees,
+  buildStructure,
+  structureIncomeForHouse,
+  totalIncomeForHouse,
   runEconomyCycle,
 };

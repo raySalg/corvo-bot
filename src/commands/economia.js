@@ -4,11 +4,31 @@ const {
   getSuzerain,
   getAlliancesForHouse,
   allianceOther,
+  structureIncomeForHouse,
+  totalIncomeForHouse,
 } = require('../services/economyService');
 const { autocompleteHouses } = require('../utils/houseDisplay');
 const { getRegionLabel } = require('../constants/regions');
 const { getHouseLevelLabel } = require('../constants/houses');
+const { getStructure } = require('../constants/economy');
 const { randomEmbedColor } = require('../utils/embed');
+
+function summarizeStructures(house) {
+  if (!house.structures || house.structures.length === 0) return 'Nenhuma';
+
+  const counts = new Map();
+  let impaired = 0;
+  for (const built of house.structures) {
+    const data = getStructure(built.type);
+    const label = data ? data.label : built.type;
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+    if (built.impaired) impaired += 1;
+  }
+
+  const parts = [...counts.entries()].map(([label, qty]) => `${label} x${qty}`);
+  const text = parts.join(', ');
+  return impaired > 0 ? `${text}\n_(${impaired} sucateada(s) por falta de manutenção)_` : text;
+}
 
 function formatGold(value) {
   return `${(value ?? 0).toLocaleString('pt-BR')} D.O.`;
@@ -60,6 +80,8 @@ module.exports = {
     }
 
     const taxPercent = Math.round((house.taxRate ?? 0) * 100);
+    const structureIncome = structureIncomeForHouse(house);
+    const totalIncome = totalIncomeForHouse(house);
 
     const embed = new EmbedBuilder()
       .setColor(randomEmbedColor())
@@ -67,10 +89,12 @@ module.exports = {
       .setDescription(`${getHouseLevelLabel(house)} · ${getRegionLabel(house.region)}`)
       .addFields(
         { name: 'Cofres Totais', value: formatGold(house.goldDragons), inline: true },
-        { name: 'Rendimento Anual', value: formatGold(house.annualIncome), inline: true },
+        { name: 'Rendimento total/ano', value: formatGold(totalIncome), inline: true },
         { name: 'Taxa de imposto', value: `${taxPercent}%`, inline: true },
-        { name: 'Fonte econômica', value: house.incomeSource || '—', inline: true },
+        { name: 'Rendimento base', value: formatGold(house.annualIncome), inline: true },
+        { name: 'Rendimento de estruturas', value: formatGold(structureIncome), inline: true },
         { name: 'Suserano', value: suzerain ? suzerain.name : 'Independente / Coroa', inline: true },
+        { name: 'Estruturas', value: summarizeStructures(house), inline: false },
         { name: 'Aliadas', value: alliesText, inline: false },
       )
       .setTimestamp();
