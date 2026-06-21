@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const { DEFAULT_HOUSES } = require('../constants/houses');
 const { validateMongoEnv } = require('../utils/mongoEnv');
 
-const OBSOLETE_SLUGS = ['targaryen'];
+const OBSOLETE_SLUGS = ['targaryen', 'waynwood', 'heyford'];
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -145,11 +145,56 @@ async function seedDefaultHouses() {
   console.log('[Sete] Casas padrão de Westeros verificadas.');
 }
 
+async function seedHouseEconomy() {
+  const House = require('../models/House');
+  const {
+    HOUSE_ECONOMY_SEED,
+    defaultTaxRateForLevel,
+  } = require('../constants/economy');
+  const { WESTEROS_GOVERNANTE_SLUG } = require('../constants/houses');
+  const { getWorldState } = require('../services/worldService');
+
+  const world = await getWorldState();
+  const crownSlug = world.governanteWesterosSlug;
+
+  const houses = await House.find({});
+  for (const house of houses) {
+    let changed = false;
+
+    const seed = HOUSE_ECONOMY_SEED[house.slug];
+    if (seed && !house.economySeeded) {
+      house.goldDragons = seed.vault;
+      house.annualIncome = seed.annualIncome;
+      house.economySeeded = true;
+      changed = true;
+    }
+
+    if (!house.taxRate) {
+      const isCrown = house.slug === crownSlug || house.slug === WESTEROS_GOVERNANTE_SLUG;
+      const rate = defaultTaxRateForLevel(house.level, { isCrown });
+      if (rate > 0) {
+        house.taxRate = rate;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await house.save();
+    }
+  }
+
+  console.log('[Sete] Economia das casas verificada.');
+}
+
 async function resetAllHouses() {
   const House = require('../models/House');
   const { resetWorldState } = require('../services/worldService');
+  const Alliance = require('../models/Alliance');
+  const Decree = require('../models/Decree');
 
   await House.deleteMany({});
+  await Alliance.deleteMany({});
+  await Decree.deleteMany({});
 
   await House.insertMany(
     DEFAULT_HOUSES.map((house) => ({
@@ -160,12 +205,17 @@ async function resetAllHouses() {
       maxMembers: house.maxMembers,
       independent: house.independent ?? false,
       goldDragons: 0,
+      annualIncome: 0,
+      taxRate: 0,
+      incomeSource: '',
+      economySeeded: false,
       lordId: null,
       members: [],
     })),
   );
 
   await resetWorldState();
+  await seedHouseEconomy();
 
   console.log('[Sete] Todas as casas foram reiniciadas.');
 }
@@ -179,6 +229,7 @@ async function seedWorldState() {
 module.exports = {
   connectDatabase,
   seedDefaultHouses,
+  seedHouseEconomy,
   resetAllHouses,
   seedWorldState,
 };

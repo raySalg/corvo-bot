@@ -24,6 +24,18 @@ const COMMAND_CATALOG = {
       name: 'membros-casa',
       description: 'Lista os membros de uma casa sem notificar ninguém.',
     },
+    {
+      name: 'economia',
+      description: 'Exibe a ficha econômica de uma casa (cofres, rendimento e aliados).',
+    },
+    {
+      name: 'decreto',
+      description: 'Senhor da casa envia o Decreto Econômico (um por casa) via formulário.',
+    },
+    {
+      name: 'alianca',
+      description: 'Alianças comerciais: propor, aceitar, desfazer, listar e transferir D.O.',
+    },
   ],
   admin: [
     {
@@ -53,6 +65,18 @@ const COMMAND_CATALOG = {
     {
       name: 'economia-alterar',
       description: 'Adicionar ou remover moedas de ouro do tesouro de uma casa.',
+    },
+    {
+      name: 'economia-definir',
+      description: 'Define rendimento, cofres, taxa e fonte econômica de uma casa.',
+    },
+    {
+      name: 'economia-ciclo',
+      description: 'Processa rendimentos, tributação e publica os decretos no canal.',
+    },
+    {
+      name: 'economia-canais',
+      description: 'Define os canais de decretos e de alianças.',
     },
     {
       name: 'definir-casa',

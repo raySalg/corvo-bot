@@ -1,7 +1,12 @@
 require('dotenv').config();
 
 const { Client, Events, GatewayIntentBits } = require('discord.js');
-const { connectDatabase, seedDefaultHouses, seedWorldState } = require('./config/database');
+const {
+  connectDatabase,
+  seedDefaultHouses,
+  seedHouseEconomy,
+  seedWorldState,
+} = require('./config/database');
 const { loadCommands } = require('./handlers/commandHandler');
 const { startKeepAliveServer } = require('./server/keepAlive');
 
@@ -49,15 +54,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 
   if (interaction.isModalSubmit()) {
-    const command = commands.get('embed');
+    const modalCommandName = interaction.customId.split(':')[0];
+    const command = commands.get(modalCommandName);
     if (command?.handleModalSubmit) {
       try {
         await command.handleModalSubmit(interaction);
       } catch (error) {
-        console.error('Erro ao processar modal de /embed:', error);
+        console.error(`Erro ao processar modal de /${modalCommandName}:`, error);
 
         const reply = {
-          content: '### Erro\nNão foi possível publicar o embed. Tente novamente.',
+          content: '### Erro\nNão foi possível processar o formulário. Tente novamente.',
           ephemeral: true,
         };
 
@@ -111,6 +117,7 @@ async function start() {
   await connectDatabase();
   await seedDefaultHouses();
   await seedWorldState();
+  await seedHouseEconomy();
   await client.login(token);
 }
 

@@ -26,6 +26,12 @@ function formatHouseLine(house) {
   return `${indicator} **${house.name}** — ${vacancies} · ${level}`;
 }
 
+function formatEconomySummary(house) {
+  const cofres = (house.goldDragons ?? 0).toLocaleString('pt-BR');
+  const rendimento = (house.annualIncome ?? 0).toLocaleString('pt-BR');
+  return `Cofres: ${cofres} D.O. · Rendimento: ${rendimento} D.O./ano`;
+}
+
 function buildRegionSection(houses) {
   if (houses.length === 0) return null;
 
@@ -51,5 +57,6 @@ function buildRegionSection(houses) {
 module.exports = {
   autocompleteHouses,
   formatHouseLine,
+  formatEconomySummary,
   buildRegionSection,
 };

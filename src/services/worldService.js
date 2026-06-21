@@ -78,6 +78,14 @@ async function setWorldStatus(status, conflictHouseSlugs = []) {
   return world;
 }
 
+async function setEconomyChannels({ decreeChannelId, allianceChannelId } = {}) {
+  const world = await getWorldState();
+  if (decreeChannelId !== undefined) world.decreeChannelId = decreeChannelId;
+  if (allianceChannelId !== undefined) world.allianceChannelId = allianceChannelId;
+  await world.save();
+  return world;
+}
+
 async function declareRegionIndependent(region, houseSlug) {
   if (region === REGIONS.SEM_TERRAS) {
     throw new Error('Casas sem terras não podem ser declaradas independentes por este comando.');
@@ -188,6 +196,7 @@ module.exports = {
   getIndependentGovernantes,
   setWesterosGovernante,
   setWorldStatus,
+  setEconomyChannels,
   declareRegionIndependent,
   submitRegion,
   submitIndependentHouse,

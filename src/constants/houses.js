@@ -74,7 +74,7 @@ const REGION_SETUP = [
     sovereign: { name: 'Arryn', slug: 'arryn' },
     vassals: [
       { name: 'Royce', slug: 'royce' },
-      { name: 'Waynwood', slug: 'waynwood' },
+      { name: 'Grafton', slug: 'grafton' },
       { name: 'Corbray', slug: 'corbray' },
     ],
   },
@@ -84,7 +84,7 @@ const REGION_SETUP = [
     vassals: [
       { name: 'Rosby', slug: 'rosby' },
       { name: 'Darklyn', slug: 'darklyn' },
-      { name: 'Heyford', slug: 'heyford' },
+      { name: 'Stokeworth', slug: 'stokeworth' },
     ],
   },
   {
