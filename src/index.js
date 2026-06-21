@@ -48,6 +48,29 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
+  if (interaction.isModalSubmit()) {
+    const command = commands.get('embed');
+    if (command?.handleModalSubmit) {
+      try {
+        await command.handleModalSubmit(interaction);
+      } catch (error) {
+        console.error('Erro ao processar modal de /embed:', error);
+
+        const reply = {
+          content: '### Erro\nNão foi possível publicar o embed. Tente novamente.',
+          ephemeral: true,
+        };
+
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(reply);
+        } else {
+          await interaction.reply(reply);
+        }
+      }
+    }
+    return;
+  }
+
   if (interaction.isAutocomplete()) {
     const command = commands.get(interaction.commandName);
     if (!command?.autocomplete) return;
