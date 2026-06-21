@@ -2,28 +2,29 @@ const {
   SlashCommandBuilder,
   PermissionFlagsBits,
 } = require('discord.js');
-const { getPlayableRegionChoices } = require('../../constants/regions');
+const House = require('../../models/House');
+const { getPlayableRegionChoices, getRegionLabel } = require('../../constants/regions');
+const { getHouseLevelLabel, formatIndependenceMessage } = require('../../constants/houses');
 const { requireAdmin } = require('../../utils/permissions');
 const { declareRegionIndependent } = require('../../services/worldService');
 const { buildWesterosEmbed } = require('../../utils/westerosEmbed');
-const { getRegionLabel } = require('../../constants/regions');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('regiao-independente')
-    .setDescription('Declara região independente e eleva uma casa a Governante regional.')
+    .setDescription('Declara independência de uma região (Soberano) ou de uma casa (Vassala).')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption((option) =>
       option
         .setName('regiao')
-        .setDescription('Região a tornar independente')
+        .setDescription('Região envolvida')
         .setRequired(true)
         .addChoices(...getPlayableRegionChoices()),
     )
     .addStringOption((option) =>
       option
         .setName('casa')
-        .setDescription('Casa que governará a região de forma independente')
+        .setDescription('Soberano da região ou vassala que se tornará independente')
         .setRequired(true)
         .setAutocomplete(true),
     ),
@@ -31,7 +32,6 @@ module.exports = {
   async autocomplete(interaction) {
     const region = interaction.options.getString('regiao');
     const focused = interaction.options.getFocused().toLowerCase();
-    const House = require('../../models/House');
 
     const query = {
       name: { $regex: focused, $options: 'i' },
@@ -41,11 +41,11 @@ module.exports = {
       query.region = region;
     }
 
-    const houses = await House.find(query).limit(25).select('name slug region');
+    const houses = await House.find(query).limit(25).select('name slug region level');
 
     await interaction.respond(
       houses.map((house) => ({
-        name: `${house.name} (${getRegionLabel(house.region)})`,
+        name: `${house.name} (${getHouseLevelLabel(house)} · ${getRegionLabel(house.region)})`,
         value: house.slug,
       })),
     );
@@ -56,15 +56,16 @@ module.exports = {
 
     const region = interaction.options.getString('regiao');
     const houseSlug = interaction.options.getString('casa');
+    const regionLabel = getRegionLabel(region);
 
     try {
-      const house = await declareRegionIndependent(region, houseSlug);
+      const { house, scope } = await declareRegionIndependent(region, houseSlug);
       const embed = await buildWesterosEmbed();
 
+      const title = scope === 'regional' ? 'Região independente' : 'Casa independente';
+
       await interaction.reply({
-        content:
-          '### Região independente\n' +
-          `**${house.name}** foi elevada a **Governante** independente de **${getRegionLabel(region)}**.`,
+        content: `### ${title}\n${formatIndependenceMessage(house, regionLabel)}`,
         embeds: [embed],
       });
     } catch (error) {

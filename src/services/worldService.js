@@ -5,6 +5,8 @@ const {
   WESTEROS_GOVERNANTE_SLUG,
   HOUSE_LEVELS,
   isWesterosGovernante,
+  isRegionalGovernante,
+  isIndependentVassal,
 } = require('../constants/houses');
 const { getRegionLabel, REGIONS } = require('../constants/regions');
 
@@ -25,6 +27,13 @@ async function getWesterosGovernante() {
   const world = await getWorldState();
   const house = await House.findOne({ slug: world.governanteWesterosSlug });
   return house ?? (await House.findOne({ slug: WESTEROS_GOVERNANTE_SLUG }));
+}
+
+async function getIndependentHouses() {
+  return House.find({
+    independent: true,
+    slug: { $ne: WESTEROS_GOVERNANTE_SLUG },
+  }).sort({ level: 1, name: 1 });
 }
 
 async function getIndependentGovernantes() {
@@ -71,7 +80,7 @@ async function setWorldStatus(status, conflictHouseSlugs = []) {
 
 async function declareRegionIndependent(region, houseSlug) {
   if (region === REGIONS.SEM_TERRAS) {
-    throw new Error('Casas sem terras não podem ser tornadas independentes.');
+    throw new Error('Casas sem terras não podem ser declaradas independentes por este comando.');
   }
 
   const house = await House.findOne({ slug: houseSlug });
@@ -85,24 +94,37 @@ async function declareRegionIndependent(region, houseSlug) {
     throw new Error('O Governante de Westeros não pode ser declarado independente.');
   }
 
-  const previousIndependent = await House.findOne({
-    region,
-    independent: true,
-    level: HOUSE_LEVELS.GOVERNANTE,
-    slug: { $ne: houseSlug },
-  });
+  const isRegionalDeclaration = [HOUSE_LEVELS.SOBERANO, HOUSE_LEVELS.GOVERNANTE].includes(house.level);
 
-  if (previousIndependent) {
-    previousIndependent.level = HOUSE_LEVELS.SOBERANO;
-    previousIndependent.independent = false;
-    await previousIndependent.save();
+  if (isRegionalDeclaration) {
+    const previousRegionalGovernante = await House.findOne({
+      region,
+      independent: true,
+      level: HOUSE_LEVELS.GOVERNANTE,
+      slug: { $ne: houseSlug },
+    });
+
+    if (previousRegionalGovernante) {
+      previousRegionalGovernante.level = HOUSE_LEVELS.SOBERANO;
+      previousRegionalGovernante.independent = false;
+      await previousRegionalGovernante.save();
+    }
+
+    house.level = HOUSE_LEVELS.GOVERNANTE;
+    house.independent = true;
+    await house.save();
+
+    return { house, scope: 'regional' };
   }
 
-  house.level = HOUSE_LEVELS.GOVERNANTE;
+  if (house.independent) {
+    throw new Error(`A casa ${house.name} já é independente.`);
+  }
+
   house.independent = true;
   await house.save();
 
-  return house;
+  return { house, scope: 'casa' };
 }
 
 async function submitRegion(region) {
@@ -113,7 +135,7 @@ async function submitRegion(region) {
   });
 
   if (!house) {
-    throw new Error('Esta região não possui uma Casa Governante independente.');
+    throw new Error('Esta região não possui um Governante regional independente.');
   }
 
   if (isWesterosGovernante(house)) {
@@ -127,10 +149,23 @@ async function submitRegion(region) {
   return house;
 }
 
+async function submitIndependentHouse(houseSlug) {
+  const house = await House.findOne({ slug: houseSlug });
+
+  if (!house || !isIndependentVassal(house)) {
+    throw new Error('Esta casa não está registrada como vassala independente.');
+  }
+
+  house.independent = false;
+  await house.save();
+
+  return house;
+}
+
 async function buildWesterosEmbedData() {
   const world = await getWorldState();
   const governante = await getWesterosGovernante();
-  const independentGovernantes = await getIndependentGovernantes();
+  const independentHouses = await getIndependentHouses();
 
   const conflictHouses = world.conflictHouseSlugs.length
     ? await House.find({ slug: { $in: world.conflictHouseSlugs } })
@@ -139,7 +174,7 @@ async function buildWesterosEmbedData() {
   return {
     world,
     governante,
-    independentGovernantes,
+    independentHouses,
     conflictHouses,
     statusLabel: WORLD_STATUS_LABELS[world.status] ?? world.status,
   };
@@ -149,10 +184,12 @@ module.exports = {
   getWorldState,
   resetWorldState,
   getWesterosGovernante,
+  getIndependentHouses,
   getIndependentGovernantes,
   setWesterosGovernante,
   setWorldStatus,
   declareRegionIndependent,
   submitRegion,
+  submitIndependentHouse,
   buildWesterosEmbedData,
 };

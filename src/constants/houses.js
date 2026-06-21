@@ -141,13 +141,18 @@ const DEFAULT_HOUSES = REGION_SETUP.flatMap(({ region, sovereign, vassals, sover
 });
 
 function getHouseLevelLabel(house) {
+  const { getRegionLabel } = require('./regions');
+
   if (house.slug === WESTEROS_GOVERNANTE_SLUG) {
     return 'Governante de Westeros';
   }
 
+  if (house.independent && house.level === HOUSE_LEVELS.MENOR) {
+    return `Casa Independente (${getRegionLabel(house.region)})`;
+  }
+
   if (house.level === HOUSE_LEVELS.GOVERNANTE && house.independent) {
-    const { getRegionLabel } = require('./regions');
-    return `Governante (${getRegionLabel(house.region)})`;
+    return `Governante de ${getRegionLabel(house.region)}`;
   }
 
   return HOUSE_LEVEL_LABELS[house.level] ?? house.level;
@@ -155,6 +160,29 @@ function getHouseLevelLabel(house) {
 
 function isWesterosGovernante(house) {
   return house?.slug === WESTEROS_GOVERNANTE_SLUG;
+}
+
+function isRegionalGovernante(house) {
+  return (
+    house?.independent &&
+    house?.level === HOUSE_LEVELS.GOVERNANTE &&
+    !isWesterosGovernante(house)
+  );
+}
+
+function isIndependentVassal(house) {
+  return house?.independent && house?.level === HOUSE_LEVELS.MENOR;
+}
+
+function formatIndependenceMessage(house, regionLabel) {
+  if (isRegionalGovernante(house)) {
+    return `**${house.name}** passou a **Governante de ${regionLabel}**, independente do domínio de Westeros.`;
+  }
+
+  return (
+    `**${house.name}** tornou-se **casa independente** em **${regionLabel}**, ` +
+    'sem jurar lealdade ao Governante de Westeros.'
+  );
 }
 
 module.exports = {
@@ -166,4 +194,7 @@ module.exports = {
   DEFAULT_HOUSES,
   getHouseLevelLabel,
   isWesterosGovernante,
+  isRegionalGovernante,
+  isIndependentVassal,
+  formatIndependenceMessage,
 };

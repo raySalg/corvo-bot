@@ -1,5 +1,11 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { WESTEROS_GOVERNANTE_SLUG, HOUSE_LEVELS } = require('../constants/houses');
+const {
+  WESTEROS_GOVERNANTE_SLUG,
+  HOUSE_LEVELS,
+  getHouseLevelLabel,
+  isRegionalGovernante,
+  isIndependentVassal,
+} = require('../constants/houses');
 const { REGION_ORDER, REGION_LABELS, REGIONS } = require('../constants/regions');
 const { randomEmbedColor } = require('./embed');
 const { formatHouseLine, buildRegionSection } = require('./houseDisplay');
@@ -8,7 +14,9 @@ const CASAS_REGION_PREFIX = 'casas-regiao';
 
 function buildWesterosGovernanteSection(houses) {
   const governante = houses.find(
-    (house) => house.slug === WESTEROS_GOVERNANTE_SLUG || (house.level === HOUSE_LEVELS.GOVERNANTE && !house.independent),
+    (house) =>
+      house.slug === WESTEROS_GOVERNANTE_SLUG ||
+      (house.level === HOUSE_LEVELS.GOVERNANTE && !house.independent),
   );
 
   if (!governante) {
@@ -19,23 +27,36 @@ function buildWesterosGovernanteSection(houses) {
 }
 
 function buildIndependentSection(houses) {
-  const independentHouses = houses.filter(
-    (house) =>
-      house.independent &&
-      house.level === HOUSE_LEVELS.GOVERNANTE &&
-      house.slug !== WESTEROS_GOVERNANTE_SLUG,
-  );
+  const regionalGovernantes = houses.filter(isRegionalGovernante);
+  const independentVassals = houses.filter(isIndependentVassal);
 
-  if (independentHouses.length === 0) {
-    return '## Casas Independentes\nNenhuma casa governa região de forma independente.';
+  if (regionalGovernantes.length === 0 && independentVassals.length === 0) {
+    return '## Casas Independentes\nNenhuma casa declarou independência do domínio central.';
   }
 
-  const lines = independentHouses.map((house) => {
-    const region = REGION_LABELS[house.region] ?? house.region;
-    return `${formatHouseLine(house)} · **${region}**`;
-  });
+  const lines = ['## Casas Independentes'];
 
-  return `## Casas Independentes\n${lines.join('\n')}`;
+  if (regionalGovernantes.length > 0) {
+    lines.push('', '**Governantes regionais**');
+    lines.push(
+      ...regionalGovernantes.map((house) => {
+        const region = REGION_LABELS[house.region] ?? house.region;
+        return `${formatHouseLine(house)} · Governante de **${region}**`;
+      }),
+    );
+  }
+
+  if (independentVassals.length > 0) {
+    lines.push('', '**Casas autônomas**');
+    lines.push(
+      ...independentVassals.map((house) => {
+        const region = REGION_LABELS[house.region] ?? house.region;
+        return `${formatHouseLine(house)} · autônoma em **${region}**`;
+      }),
+    );
+  }
+
+  return lines.join('\n');
 }
 
 function buildOverviewEmbed(houses) {

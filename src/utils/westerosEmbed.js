@@ -1,13 +1,20 @@
 const { EmbedBuilder } = require('discord.js');
 const { buildWesterosEmbedData } = require('../services/worldService');
 const { WORLD_STATUS } = require('../constants/world');
-const { getHouseLevelLabel } = require('../constants/houses');
+const {
+  getHouseLevelLabel,
+  isRegionalGovernante,
+  isIndependentVassal,
+} = require('../constants/houses');
 const { getRegionLabel } = require('../constants/regions');
 const { randomEmbedColor } = require('./embed');
 
 async function buildWesterosEmbed() {
-  const { world, governante, independentGovernantes, conflictHouses, statusLabel } =
+  const { world, governante, independentHouses, conflictHouses, statusLabel } =
     await buildWesterosEmbedData();
+
+  const regionalGovernantes = independentHouses.filter(isRegionalGovernante);
+  const independentVassals = independentHouses.filter(isIndependentVassal);
 
   const lines = [
     '## Situação de Westeros',
@@ -22,15 +29,26 @@ async function buildWesterosEmbed() {
 
   lines.push('', '## Casas Independentes');
 
-  if (independentGovernantes.length === 0) {
-    lines.push('Nenhuma casa governa região de forma independente.');
+  if (regionalGovernantes.length === 0 && independentVassals.length === 0) {
+    lines.push('Nenhuma casa declarou independência do domínio central.');
   } else {
-    lines.push(
-      ...independentGovernantes.map((house) => {
-        const region = getRegionLabel(house.region);
-        return `• **${house.name}** — Governante de **${region}** (${getHouseLevelLabel(house)})`;
-      }),
-    );
+    if (regionalGovernantes.length > 0) {
+      lines.push('', '**Governantes regionais**');
+      lines.push(
+        ...regionalGovernantes.map(
+          (house) => `• **${house.name}** — ${getHouseLevelLabel(house)}`,
+        ),
+      );
+    }
+
+    if (independentVassals.length > 0) {
+      lines.push('', '**Casas autônomas**');
+      lines.push(
+        ...independentVassals.map(
+          (house) => `• **${house.name}** — ${getHouseLevelLabel(house)}`,
+        ),
+      );
+    }
   }
 
   return new EmbedBuilder()
