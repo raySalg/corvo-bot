@@ -35,6 +35,20 @@ function getModalTextInput(interaction, customId) {
   return interaction.fields.fields.get(customId)?.value ?? '';
 }
 
+async function resolveInteractionChannel(interaction) {
+  if (!interaction.channelId) return null;
+
+  const cached = interaction.client.channels.cache.get(interaction.channelId);
+  if (cached) return cached;
+
+  try {
+    return await interaction.client.channels.fetch(interaction.channelId);
+  } catch (error) {
+    console.error(`Canal ${interaction.channelId} indisponível:`, error);
+    return null;
+  }
+}
+
 async function buildAndSendEmbed(interaction, fields) {
   const titulo = fields.titulo.trim();
   const corpo = normalizeEmbedText(fields.corpo);
@@ -91,7 +105,9 @@ async function buildAndSendEmbed(interaction, fields) {
   if (rodape) embed.setFooter({ text: rodape });
   if (imagem) embed.setImage(imagem);
 
-  if (!interaction.channel?.isTextBased?.()) {
+  const channel = await resolveInteractionChannel(interaction);
+
+  if (!channel || typeof channel.send !== 'function') {
     await interaction.editReply({
       content: '### Canal indisponível\nNão foi possível publicar o embed neste canal.',
     });
@@ -99,7 +115,7 @@ async function buildAndSendEmbed(interaction, fields) {
   }
 
   try {
-    await interaction.channel.send({ embeds: [embed] });
+    await channel.send({ embeds: [embed] });
   } catch (error) {
     console.error('Erro ao publicar embed no canal:', error);
     await interaction.editReply({

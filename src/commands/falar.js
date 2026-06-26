@@ -31,11 +31,25 @@ module.exports = {
       .setFooter({ text: `Proclamado por ${interaction.user.username}` })
       .setTimestamp();
 
+    const channel =
+      interaction.channel ??
+      (interaction.channelId
+        ? await interaction.client.channels.fetch(interaction.channelId).catch(() => null)
+        : null);
+
+    if (!channel) {
+      await interaction.reply({
+        content: '### Canal indisponível\nNão foi possível publicar a mensagem neste canal.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    await channel.send({ embeds: [embed] });
+
     await interaction.reply({
       content: '### Proclamação enviada\nA mensagem foi publicada no canal.',
       ephemeral: true,
     });
-
-    await interaction.channel.send({ embeds: [embed] });
   },
 };
