@@ -9,6 +9,7 @@ const {
 } = require('discord.js');
 const { requireAdmin } = require('../../utils/permissions');
 const { randomEmbedColor, parseEmbedColor } = require('../../utils/embed');
+const { publishEmbed } = require('../../utils/publishMessage');
 
 const EMBED_MODAL_ID = 'embed:submit';
 
@@ -107,28 +108,41 @@ async function buildAndSendEmbed(interaction, fields) {
 
   const channel = await resolveInteractionChannel(interaction);
 
-  if (!channel || typeof channel.send !== 'function') {
-    await interaction.editReply({
-      content: '### Canal indisponível\nNão foi possível publicar o embed neste canal.',
-    });
-    return;
-  }
-
+  let publishMode;
   try {
-    await channel.send({ embeds: [embed] });
+    publishMode = await publishEmbed(channel, { title: titulo, embed });
   } catch (error) {
+    if (error.message === 'CHANNEL_UNAVAILABLE') {
+      await interaction.editReply({
+        content: '### Canal indisponível\nNão foi possível publicar o embed neste canal.',
+      });
+      return;
+    }
+
+    if (error.message === 'CHANNEL_UNSUPPORTED') {
+      await interaction.editReply({
+        content:
+          '### Canal não suportado\n' +
+          'Este tipo de canal não permite publicar embeds. Use um canal de texto ou um fórum.',
+      });
+      return;
+    }
+
     console.error('Erro ao publicar embed no canal:', error);
     await interaction.editReply({
       content:
         '### Publicação recusada\n' +
-        'Não foi possível enviar a mensagem no canal. Verifique se o bot tem permissão para **Enviar Mensagens** e **Incorporar Links**.',
+        'Não foi possível enviar a mensagem. Verifique se o bot tem permissão para **Enviar Mensagens**, **Criar Posts Públicos** (fórum) e **Incorporar Links**.',
     });
     return;
   }
 
-  await interaction.editReply({
-    content: '### Embed enviado\nA mensagem foi publicada no canal.',
-  });
+  const successMessage =
+    publishMode === 'forum_post'
+      ? '### Embed enviado\nNovo post criado no fórum.'
+      : '### Embed enviado\nA mensagem foi publicada no canal.';
+
+  await interaction.editReply({ content: successMessage });
 }
 
 function buildEmbedModal() {

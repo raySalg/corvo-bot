@@ -5,6 +5,7 @@ const {
 } = require('discord.js');
 const { requireAdmin } = require('../utils/permissions');
 const { randomEmbedColor } = require('../utils/embed');
+const { publishEmbed } = require('../utils/publishMessage');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -37,19 +38,28 @@ module.exports = {
         ? await interaction.client.channels.fetch(interaction.channelId).catch(() => null)
         : null);
 
-    if (!channel) {
+    try {
+      const publishMode = await publishEmbed(channel, {
+        title: 'Proclamação do Sete',
+        embed,
+      });
+
+      const successMessage =
+        publishMode === 'forum_post'
+          ? '### Proclamação enviada\nNovo post criado no fórum.'
+          : '### Proclamação enviada\nA mensagem foi publicada no canal.';
+
       await interaction.reply({
-        content: '### Canal indisponível\nNão foi possível publicar a mensagem neste canal.',
+        content: successMessage,
         ephemeral: true,
       });
-      return;
+    } catch (error) {
+      const content =
+        error.message === 'CHANNEL_UNAVAILABLE'
+          ? '### Canal indisponível\nNão foi possível publicar a mensagem neste canal.'
+          : '### Publicação recusada\nNão foi possível enviar a mensagem neste canal.';
+
+      await interaction.reply({ content, ephemeral: true });
     }
-
-    await channel.send({ embeds: [embed] });
-
-    await interaction.reply({
-      content: '### Proclamação enviada\nA mensagem foi publicada no canal.',
-      ephemeral: true,
-    });
   },
 };
