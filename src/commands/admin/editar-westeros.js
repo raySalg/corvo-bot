@@ -92,7 +92,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    if (!requireAdmin(interaction)) return;
+    if (!(await requireAdmin(interaction))) return;
 
     const subcommand = interaction.options.getSubcommand();
 

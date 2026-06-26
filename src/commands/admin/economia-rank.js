@@ -41,7 +41,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!requireAdmin(interaction)) return;
+    if (!(await requireAdmin(interaction))) return;
 
     const tipo = interaction.options.getString('tipo') ?? 'cofres';
     const limit = interaction.options.getInteger('limite') ?? 15;

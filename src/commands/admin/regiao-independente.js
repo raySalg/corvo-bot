@@ -52,7 +52,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    if (!requireAdmin(interaction)) return;
+    if (!(await requireAdmin(interaction))) return;
 
     const region = interaction.options.getString('regiao');
     const houseSlug = interaction.options.getString('casa');

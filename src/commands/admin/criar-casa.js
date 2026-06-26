@@ -62,7 +62,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!requireAdmin(interaction)) return;
+    if (!(await requireAdmin(interaction))) return;
 
     const name = interaction.options.getString('nome').trim();
     const region = interaction.options.getString('regiao');

@@ -4,9 +4,9 @@ function isAdmin(interaction) {
   return interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
 }
 
-function requireAdmin(interaction) {
+async function requireAdmin(interaction) {
   if (!isAdmin(interaction)) {
-    interaction.reply({
+    await interaction.reply({
       content: '### Acesso negado\nApenas **administradores** do reino podem usar este comando.',
       ephemeral: true,
     });

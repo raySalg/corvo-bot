@@ -20,7 +20,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!requireAdmin(interaction)) return;
+    if (!(await requireAdmin(interaction))) return;
 
     const message = interaction.options.getString('mensagem');
 

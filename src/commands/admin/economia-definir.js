@@ -52,7 +52,7 @@ module.exports = {
   autocomplete: autocompleteHouses,
 
   async execute(interaction) {
-    if (!requireAdmin(interaction)) return;
+    if (!(await requireAdmin(interaction))) return;
 
     const slug = interaction.options.getString('casa');
     const rendimento = interaction.options.getInteger('rendimento');

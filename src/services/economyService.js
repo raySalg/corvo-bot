@@ -2,7 +2,7 @@ const House = require('../models/House');
 const Alliance = require('../models/Alliance');
 const EconomyLog = require('../models/EconomyLog');
 const Decree = require('../models/Decree');
-const { getWesterosGovernante } = require('./worldService');
+const { getWesterosGovernante, getWorldState } = require('./worldService');
 const {
   HOUSE_LEVELS,
   isWesterosGovernante,

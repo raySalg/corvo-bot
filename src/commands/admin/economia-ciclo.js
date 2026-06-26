@@ -106,7 +106,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    if (!requireAdmin(interaction)) return;
+    if (!(await requireAdmin(interaction))) return;
 
     const confirmation = interaction.options.getString('confirmacao').trim().toUpperCase();
 

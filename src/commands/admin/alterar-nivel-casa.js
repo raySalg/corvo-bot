@@ -37,7 +37,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    if (!requireAdmin(interaction)) return;
+    if (!(await requireAdmin(interaction))) return;
 
     const slug = interaction.options.getString('casa');
     const newLevel = interaction.options.getString('nivel');
