@@ -1,6 +1,6 @@
-# Sete — Bot de Discord (Game of Thrones)
+# Corvo de Três Olhos — Bot de Discord (Game of Thrones)
 
-Bot de Discord ambientado em **Westeros**. O Sete dá vida ao reino com sistema de **casas**, **lealdades** e **economia** persistidos em MongoDB.
+Bot de Discord ambientado em **Westeros**. O **Corvo de Três Olhos** dá vida ao reino com sistema de **casas**, **lealdades** e **economia** persistidos em MongoDB.
 
 ## Comandos
 
@@ -39,7 +39,7 @@ cp .env.example .env
 |----------|-----------|
 | `DISCORD_TOKEN` | Token do bot (Developer Portal → Bot → Reset Token) |
 | `DISCORD_CLIENT_ID` | Application ID (`1517984369120378980`) |
-| `DISCORD_GUILD_ID` | ID do servidor de testes (comandos aparecem na hora) |
+| `DISCORD_GUILD_ID` | ID do servidor (`1523391016634417202`) — comandos aparecem na hora |
 | `MONGODB_URI` | Connection string do MongoDB Atlas |
 | `PORT` | Porta HTTP (Render define automaticamente; localmente usa `3000`) |
 

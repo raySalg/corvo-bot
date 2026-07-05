@@ -149,7 +149,7 @@ module.exports = {
 
       await interaction.editReply({ content: extra || undefined, embeds: [embed] });
     } catch (error) {
-      console.error('[Sete] Erro no ciclo econômico:', error);
+      console.error('[Corvo] Erro no ciclo econômico:', error);
 
       await interaction.editReply({
         content:

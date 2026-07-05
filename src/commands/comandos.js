@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { BOT_NAME, BOT_NAME_SHORT } = require('../constants/bot');
 const { COMMAND_CATALOG, formatCommandList } = require('../constants/commands');
 const { randomEmbedColor } = require('../utils/embed');
 const { isAdmin } = require('../utils/permissions');
@@ -6,7 +7,7 @@ const { isAdmin } = require('../utils/permissions');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('comandos')
-    .setDescription('Lista todos os comandos do Sete com descrições.'),
+    .setDescription(`Lista todos os comandos do ${BOT_NAME_SHORT} com descrições.`),
 
   async execute(interaction) {
     const userIsAdmin = isAdmin(interaction);
@@ -25,9 +26,9 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(randomEmbedColor())
-      .setTitle('Sete — Comandos do Reino')
+      .setTitle(`${BOT_NAME} — Comandos do Reino`)
       .setDescription(description)
-      .setFooter({ text: 'O Sete observa o reino.' })
+      .setFooter({ text: `O ${BOT_NAME_SHORT} observa o reino.` })
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });

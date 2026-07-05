@@ -3,6 +3,7 @@ const {
   PermissionFlagsBits,
   EmbedBuilder,
 } = require('discord.js');
+const { BOT_NAME, BOT_NAME_SHORT } = require('../constants/bot');
 const { requireAdmin } = require('../utils/permissions');
 const { randomEmbedColor } = require('../utils/embed');
 const { publishEmbed } = require('../utils/publishMessage');
@@ -10,12 +11,12 @@ const { publishEmbed } = require('../utils/publishMessage');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('falar')
-    .setDescription('Faz o Sete proclamar uma mensagem em nome do reino (teste).')
+    .setDescription(`Faz o ${BOT_NAME_SHORT} proclamar uma mensagem em nome do reino (teste).`)
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption((option) =>
       option
         .setName('mensagem')
-        .setDescription('Texto que o Sete irá proclamar')
+        .setDescription(`Texto que o ${BOT_NAME_SHORT} irá proclamar`)
         .setRequired(true)
         .setMaxLength(2000),
     ),
@@ -27,7 +28,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(randomEmbedColor())
-      .setTitle('Proclamação do Sete')
+      .setTitle(`Proclamação do ${BOT_NAME_SHORT}`)
       .setDescription(`### Decreto real\n${message}`)
       .setFooter({ text: `Proclamado por ${interaction.user.username}` })
       .setTimestamp();
@@ -40,7 +41,7 @@ module.exports = {
 
     try {
       const publishMode = await publishEmbed(channel, {
-        title: 'Proclamação do Sete',
+        title: `Proclamação do ${BOT_NAME_SHORT}`,
         embed,
       });
 

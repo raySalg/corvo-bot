@@ -12,6 +12,6 @@ services:
       - key: DISCORD_CLIENT_ID
         value: "1517984369120378980"
       - key: DISCORD_GUILD_ID
-        sync: false
+        value: "1523391016634417202"
       - key: MONGODB_URI
         sync: false

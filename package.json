@@ -1,7 +1,7 @@
 {
   "name": "sete-bot",
   "version": "1.0.0",
-  "description": "Sete — bot de Discord ambientado em Game of Thrones",
+  "description": "Corvo de Três Olhos — bot de Discord ambientado em Game of Thrones",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

@@ -1,8 +1,10 @@
+const { BOT_NAME_SHORT } = require('./bot');
+
 const COMMAND_CATALOG = {
   public: [
     {
       name: 'comandos',
-      description: 'Lista todos os comandos disponíveis do Sete.',
+      description: `Lista todos os comandos disponíveis do ${BOT_NAME_SHORT}.`,
     },
     {
       name: 'westeros',
@@ -100,7 +102,7 @@ const COMMAND_CATALOG = {
     },
     {
       name: 'falar',
-      description: 'Faz o Sete proclamar uma mensagem no canal.',
+      description: `Faz o ${BOT_NAME_SHORT} proclamar uma mensagem no canal.`,
     },
     {
       name: 'embed',

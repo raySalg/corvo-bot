@@ -48,7 +48,7 @@ module.exports = {
           'Tesouros zerados e todos os jogadores removidos das casas.',
       });
     } catch (error) {
-      console.error('[Sete] Erro ao reiniciar casas:', error);
+      console.error('[Corvo] Erro ao reiniciar casas:', error);
 
       await interaction.editReply({
         content:

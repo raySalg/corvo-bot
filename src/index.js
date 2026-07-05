@@ -11,11 +11,12 @@ const { loadCommands } = require('./handlers/commandHandler');
 const { startKeepAliveServer } = require('./server/keepAlive');
 
 const { validateDiscordEnv } = require('./utils/discordEnv');
+const { BOT_NAME } = require('./constants/bot');
 const { CASAS_REGION_PREFIX, handleCasasRegionButton } = require('./utils/casasView');
 const { token, errors } = validateDiscordEnv();
 
 if (errors.length > 0) {
-  console.error('[Sete] Variáveis de ambiente inválidas:');
+  console.error('[Corvo] Variáveis de ambiente inválidas:');
   for (const error of errors) {
     console.error(`  - ${error}`);
   }
@@ -29,7 +30,7 @@ const client = new Client({
 const commands = loadCommands();
 
 client.once(Events.ClientReady, (readyClient) => {
-  console.log(`[Sete] O Sete despertou como ${readyClient.user.tag}`);
+  console.log(`[Corvo] ${BOT_NAME} despertou como ${readyClient.user.tag}`);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -144,6 +145,6 @@ async function start() {
 }
 
 start().catch((error) => {
-  console.error('[Sete] Falha ao iniciar:', error);
+  console.error('[Corvo] Falha ao iniciar:', error);
   process.exit(1);
 });
