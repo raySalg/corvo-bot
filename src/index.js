@@ -9,11 +9,12 @@ const {
 } = require('./config/database');
 const { loadCommands } = require('./handlers/commandHandler');
 const { startKeepAliveServer } = require('./server/keepAlive');
-
 const { validateDiscordEnv } = require('./utils/discordEnv');
 const { BOT_NAME } = require('./constants/bot');
 const { CASAS_REGION_PREFIX, handleCasasRegionButton } = require('./utils/casasView');
-const { token, errors } = validateDiscordEnv();
+const { ephemeralPayload, sendEphemeral } = require('./utils/interactionReply');
+
+const { token, clientId, guildId, errors } = validateDiscordEnv();
 
 if (errors.length > 0) {
   console.error('[Corvo] Variáveis de ambiente inválidas:');
@@ -31,6 +32,17 @@ const commands = loadCommands();
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`[Corvo] ${BOT_NAME} despertou como ${readyClient.user.tag}`);
+  console.log(`[Corvo] Application ID: ${readyClient.application.id}`);
+  console.log(`[Corvo] ${commands.size} comandos carregados em memória.`);
+  console.log(
+    `[Corvo] Comandos registrados no deploy para guild: ${guildId || '(global — pode levar até 1 h)'}`,
+  );
+
+  if (clientId && readyClient.application.id !== clientId) {
+    console.error(
+      `[Corvo] DISCORD_CLIENT_ID (${clientId}) difere do app conectado (${readyClient.application.id}).`,
+    );
+  }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -39,17 +51,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await handleCasasRegionButton(interaction);
     } catch (error) {
       console.error('Erro ao processar botão de região:', error);
-
-      const reply = {
-        content: '### Erro\nNão foi possível carregar esta região. Tente novamente.',
-        ephemeral: true,
-      };
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(reply);
-      } else {
-        await interaction.reply(reply);
-      }
+      await sendEphemeral(
+        interaction,
+        '### Erro\nNão foi possível carregar esta região. Tente novamente.',
+      );
     }
     return;
   }
@@ -60,16 +65,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (!command?.handleModalSubmit) {
       console.error(`Modal sem handler registrado: ${interaction.customId}`);
-      const reply = {
-        content: '### Erro\nEste formulário não está mais disponível. Execute o comando novamente.',
-        ephemeral: true,
-      };
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(reply);
-      } else {
-        await interaction.reply(reply);
-      }
+      await sendEphemeral(
+        interaction,
+        '### Erro\nEste formulário não está mais disponível. Execute o comando novamente.',
+      );
       return;
     }
 
@@ -78,24 +77,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       if (!interaction.replied && !interaction.deferred) {
         console.error(`Modal de /${modalCommandName} concluiu sem resposta: ${interaction.customId}`);
-        await interaction.reply({
-          content: '### Erro\nNão foi possível processar o formulário. Tente novamente.',
-          ephemeral: true,
-        });
+        await sendEphemeral(
+          interaction,
+          '### Erro\nNão foi possível processar o formulário. Tente novamente.',
+        );
       }
     } catch (error) {
       console.error(`Erro ao processar modal de /${modalCommandName}:`, error);
-
-      const reply = {
-        content: '### Erro\nNão foi possível processar o formulário. Tente novamente.',
-        ephemeral: true,
-      };
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(reply);
-      } else {
-        await interaction.reply(reply);
-      }
+      await sendEphemeral(
+        interaction,
+        '### Erro\nNão foi possível processar o formulário. Tente novamente.',
+      );
     }
     return;
   }
@@ -115,23 +107,25 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   const command = commands.get(interaction.commandName);
-  if (!command) return;
+  if (!command) {
+    console.error(
+      `[Corvo] Comando /${interaction.commandName} não encontrado (app ${interaction.applicationId}, guild ${interaction.guildId}).`,
+    );
+    await sendEphemeral(
+      interaction,
+      '### Comando indisponível\nEste comando não está registrado neste servidor. Peça a um admin para redeployar o bot.',
+    );
+    return;
+  }
 
   try {
     await command.execute(interaction);
   } catch (error) {
     console.error(`Erro ao executar /${interaction.commandName}:`, error);
-
-    const reply = {
-      content: '### Erro\nOcorreu um erro ao executar este comando. Tente novamente.',
-      ephemeral: true,
-    };
-
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(reply);
-    } else {
-      await interaction.reply(reply);
-    }
+    await sendEphemeral(
+      interaction,
+      '### Erro\nOcorreu um erro ao executar este comando. Tente novamente.',
+    );
   }
 });
 
