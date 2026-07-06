@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm install
-    startCommand: npm run deploy-commands && npm start
+    startCommand: (npm run deploy-commands || true) && npm start
     healthCheckPath: /health
     envVars:
       - key: DISCORD_TOKEN

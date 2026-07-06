@@ -39,11 +39,12 @@ async function deploy() {
         console.error('[Corvo] Como corrigir:');
         console.error('  1. Convide o bot para o servidor usando este link:');
         console.error(
-          `     https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=2147485696&scope=bot%20applications.commands`,
+          `     https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=2147485696&scope=bot%20applications.commands&guild_id=${guildId}`,
         );
         console.error('  2. Confirme que DISCORD_GUILD_ID é o ID do MESMO servidor');
         console.error('  3. Salve no Render e faça Manual Deploy');
-        process.exit(1);
+        console.warn('[Corvo] O bot será iniciado mesmo assim; os comandos podem não funcionar até o convite.');
+        return;
       }
 
       console.log(`[Corvo] Registrando ${body.length} comandos no servidor ${guildId}...`);
