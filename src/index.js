@@ -7,7 +7,10 @@ const { routeInteraction } = require('./handlers/interactionRouter');
 const { startKeepAliveServer } = require('./server/keepAlive');
 const { validateDiscordEnv } = require('./utils/discordEnv');
 const { BOT_NAME } = require('./constants/bot');
-const { attachDiscordClient, setStartupPhase, markDiscordLoginStart, setDiscordError } = require('./botState');
+const { attachDiscordClient, setStartupPhase, markDiscordLoginStart, setDiscordError, setTokenRestResult, getDiscordStatus } = require('./botState');
+const { validateBotToken } = require('./utils/discordAuth');
+
+const GATEWAY_WARN_MS = 90_000;
 
 const { token, clientId, guildId, errors } = validateDiscordEnv();
 
@@ -96,22 +99,53 @@ client.on(Events.InteractionCreate, async (interaction) => {
   await routeInteraction(interaction, commands);
 });
 
+async function connectDiscordGateway() {
+  setStartupPhase('discord_gateway');
+  console.log('[Corvo] Abrindo conexão Gateway (WebSocket)...');
+
+  try {
+    await client.login(token);
+    console.log('[Corvo] Gateway conectado — aguardando READY...');
+  } catch (error) {
+    setStartupPhase('discord_login_failed');
+    setDiscordError(error);
+    console.error('[Corvo] Falha no Gateway:', error);
+  }
+}
+
 async function start() {
   startKeepAliveServer({ client, commands });
 
   markDiscordLoginStart();
-  setStartupPhase('discord_login');
-  console.log('[Corvo] Conectando ao Discord...');
+  setStartupPhase('discord_token_check');
+  console.log('[Corvo] Validando DISCORD_TOKEN via API REST...');
 
   try {
-    await client.login(token);
-    setStartupPhase('discord_gateway');
-    console.log('[Corvo] Token aceito — aguardando Gateway READY...');
+    const botUser = await validateBotToken(token);
+    setTokenRestResult(botUser);
+    console.log(`[Corvo] Token REST ok — bot ${botUser.username} (${botUser.id}).`);
   } catch (error) {
     setStartupPhase('discord_login_failed');
     setDiscordError(error);
-    throw error;
+    throw new Error(
+      `DISCORD_TOKEN rejeitado pela API do Discord (${error.status ?? error.code ?? 'erro'}). ` +
+        'Gere um novo token em Developer Portal → Bot → Reset Token.',
+    );
   }
+
+  void connectDiscordGateway();
+
+  setTimeout(() => {
+    if (client.isReady()) return;
+
+    const { startupPhase } = getDiscordStatus();
+    if (startupPhase === 'discord_gateway' || startupPhase === 'discord_login') {
+      setDiscordError(new Error('Gateway WebSocket não conectou em 90s'));
+      console.error(
+        '[Corvo] Gateway timeout — comandos podem funcionar via POST /interactions se DISCORD_PUBLIC_KEY estiver configurada.',
+      );
+    }
+  }, GATEWAY_WARN_MS);
 }
 
 process.on('unhandledRejection', (reason) => {

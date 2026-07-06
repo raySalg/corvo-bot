@@ -33,13 +33,16 @@ function startKeepAliveServer({ client, commands } = {}) {
 
     let hint = null;
     if (!discordStatus.discordReady) {
-      if (discordStatus.startupPhase === 'discord_login_failed' || discordStatus.lastDiscordError) {
-        hint = 'DISCORD_TOKEN inválido ou expirado. Gere um novo no Developer Portal → Bot → Reset Token.';
-      } else if (!hasPublicKey) {
+      if (!hasPublicKey) {
         hint =
-          'Configure DISCORD_PUBLIC_KEY no Render e Interactions Endpoint URL = https://sete-bot.onrender.com/interactions';
+          'URGENTE: adicione DISCORD_PUBLIC_KEY no Render (Developer Portal → Public Key) e Interactions Endpoint URL = https://sete-bot.onrender.com/interactions';
+      } else if (discordStatus.startupPhase === 'discord_login_failed' || discordStatus.lastDiscordError?.includes('rejeitado')) {
+        hint = 'DISCORD_TOKEN inválido. Developer Portal → Bot → Reset Token → cole no Render sem aspas.';
+      } else if (discordStatus.tokenRestOk && discordStatus.loginWaitSeconds > 45) {
+        hint =
+          'Token REST ok, mas Gateway WebSocket travou. Comandos devem funcionar via /interactions; para status online, tente Manual Deploy no Render.';
       } else if (discordStatus.loginWaitSeconds > 45) {
-        hint = 'Gateway lento ou token incorreto. Verifique DISCORD_TOKEN no Render (sem aspas).';
+        hint = 'Login lento — verifique DISCORD_TOKEN no Render (sem aspas, token novo).';
       }
     }
 

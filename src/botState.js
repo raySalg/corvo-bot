@@ -2,6 +2,8 @@ let discordClient = null;
 let startupPhase = 'boot';
 let loginStartedAt = null;
 let lastDiscordError = null;
+let tokenRestOk = false;
+let tokenBotTag = null;
 
 function attachDiscordClient(client) {
   discordClient = client;
@@ -18,6 +20,12 @@ function markDiscordLoginStart() {
 
 function setDiscordError(error) {
   lastDiscordError = error?.message ?? String(error);
+}
+
+function setTokenRestResult(botUser) {
+  tokenRestOk = true;
+  const discriminator = botUser.discriminator === '0' ? '' : `#${botUser.discriminator}`;
+  tokenBotTag = `${botUser.username}${discriminator}`;
 }
 
 function getDiscordStatus() {
@@ -37,6 +45,8 @@ function getDiscordStatus() {
     mongodb,
     loginWaitSeconds,
     lastDiscordError,
+    tokenRestOk,
+    tokenBotTag,
   };
 
   if (!discordClient) {
@@ -50,7 +60,7 @@ function getDiscordStatus() {
 
   return {
     discord: discordClient.isReady() ? 'online' : 'connecting',
-    discordUser: discordClient.user?.tag ?? null,
+    discordUser: discordClient.user?.tag ?? tokenBotTag,
     discordReady: discordClient.isReady(),
     ...base,
   };
@@ -61,5 +71,6 @@ module.exports = {
   setStartupPhase,
   markDiscordLoginStart,
   setDiscordError,
+  setTokenRestResult,
   getDiscordStatus,
 };
