@@ -29,6 +29,19 @@ function startKeepAliveServer({ client, commands } = {}) {
 
   app.get('/health', (_req, res) => {
     const discordStatus = getDiscordStatus();
+    const hasPublicKey = Boolean(process.env.DISCORD_PUBLIC_KEY?.trim());
+
+    let hint = null;
+    if (!discordStatus.discordReady) {
+      if (discordStatus.startupPhase === 'discord_login_failed' || discordStatus.lastDiscordError) {
+        hint = 'DISCORD_TOKEN inválido ou expirado. Gere um novo no Developer Portal → Bot → Reset Token.';
+      } else if (!hasPublicKey) {
+        hint =
+          'Configure DISCORD_PUBLIC_KEY no Render e Interactions Endpoint URL = https://sete-bot.onrender.com/interactions';
+      } else if (discordStatus.loginWaitSeconds > 45) {
+        hint = 'Gateway lento ou token incorreto. Verifique DISCORD_TOKEN no Render (sem aspas).';
+      }
+    }
 
     res.status(200).json({
       status: discordStatus.discordReady ? 'ok' : 'starting',
@@ -36,7 +49,8 @@ function startKeepAliveServer({ client, commands } = {}) {
       message: discordStatus.discordReady
         ? 'Estou vivo!'
         : `HTTP ok — fase: ${discordStatus.startupPhase}`,
-      interactionsEndpoint: Boolean(process.env.DISCORD_PUBLIC_KEY?.trim()),
+      interactionsEndpoint: hasPublicKey,
+      hint,
       ...discordStatus,
     });
   });

@@ -1,5 +1,7 @@
 let discordClient = null;
 let startupPhase = 'boot';
+let loginStartedAt = null;
+let lastDiscordError = null;
 
 function attachDiscordClient(client) {
   discordClient = client;
@@ -7,6 +9,15 @@ function attachDiscordClient(client) {
 
 function setStartupPhase(phase) {
   startupPhase = phase;
+}
+
+function markDiscordLoginStart() {
+  loginStartedAt = Date.now();
+  lastDiscordError = null;
+}
+
+function setDiscordError(error) {
+  lastDiscordError = error?.message ?? String(error);
 }
 
 function getDiscordStatus() {
@@ -19,13 +30,21 @@ function getDiscordStatus() {
     mongodb = 'unavailable';
   }
 
+  const loginWaitSeconds = loginStartedAt ? Math.floor((Date.now() - loginStartedAt) / 1000) : 0;
+
+  const base = {
+    startupPhase,
+    mongodb,
+    loginWaitSeconds,
+    lastDiscordError,
+  };
+
   if (!discordClient) {
     return {
       discord: 'offline',
       discordUser: null,
       discordReady: false,
-      startupPhase,
-      mongodb,
+      ...base,
     };
   }
 
@@ -33,9 +52,14 @@ function getDiscordStatus() {
     discord: discordClient.isReady() ? 'online' : 'connecting',
     discordUser: discordClient.user?.tag ?? null,
     discordReady: discordClient.isReady(),
-    startupPhase,
-    mongodb,
+    ...base,
   };
 }
 
-module.exports = { attachDiscordClient, setStartupPhase, getDiscordStatus };
+module.exports = {
+  attachDiscordClient,
+  setStartupPhase,
+  markDiscordLoginStart,
+  setDiscordError,
+  getDiscordStatus,
+};

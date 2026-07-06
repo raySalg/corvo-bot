@@ -7,7 +7,7 @@ const { routeInteraction } = require('./handlers/interactionRouter');
 const { startKeepAliveServer } = require('./server/keepAlive');
 const { validateDiscordEnv } = require('./utils/discordEnv');
 const { BOT_NAME } = require('./constants/bot');
-const { attachDiscordClient, setStartupPhase } = require('./botState');
+const { attachDiscordClient, setStartupPhase, markDiscordLoginStart, setDiscordError } = require('./botState');
 
 const { token, clientId, guildId, errors } = validateDiscordEnv();
 
@@ -72,7 +72,13 @@ client.once(Events.ClientReady, (readyClient) => {
 });
 
 client.on(Events.Error, (error) => {
+  setDiscordError(error);
   console.error('[Corvo] Erro no cliente Discord:', error);
+});
+
+client.on(Events.ShardError, (error, shardId) => {
+  setDiscordError(error);
+  console.error(`[Corvo] Erro no shard ${shardId}:`, error);
 });
 
 client.on(Events.ShardDisconnect, (_event, shardId) => {
@@ -93,9 +99,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
 async function start() {
   startKeepAliveServer({ client, commands });
 
+  markDiscordLoginStart();
   setStartupPhase('discord_login');
   console.log('[Corvo] Conectando ao Discord...');
-  await client.login(token);
+
+  try {
+    await client.login(token);
+    setStartupPhase('discord_gateway');
+    console.log('[Corvo] Token aceito — aguardando Gateway READY...');
+  } catch (error) {
+    setStartupPhase('discord_login_failed');
+    setDiscordError(error);
+    throw error;
+  }
 }
 
 process.on('unhandledRejection', (reason) => {
