@@ -6,6 +6,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
+  MessageFlags,
 } = require('discord.js');
 const { requireAdmin } = require('../../utils/permissions');
 const { randomEmbedColor, parseEmbedColor } = require('../../utils/embed');
@@ -211,7 +212,7 @@ module.exports = {
 
     if (!(await requireAdmin(interaction))) return;
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     await buildAndSendEmbed(interaction, {
       titulo: getModalTextInput(interaction, 'titulo'),

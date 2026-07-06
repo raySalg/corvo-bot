@@ -118,9 +118,8 @@ async function handleCasasRegionButton(interaction) {
   const houses = await House.find().sort({ name: 1 });
   const embed = buildRegionEmbed(houses, region);
 
-  await interaction.reply({
+  await interaction.editReply({
     embeds: [embed],
-    ephemeral: true,
   });
 }
 

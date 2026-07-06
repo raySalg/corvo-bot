@@ -36,8 +36,6 @@ module.exports = {
       return;
     }
 
-    await interaction.deferReply();
-
     try {
       await resetAllHouses();
 

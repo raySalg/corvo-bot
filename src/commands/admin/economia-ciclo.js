@@ -122,8 +122,6 @@ module.exports = {
       return;
     }
 
-    await interaction.deferReply();
-
     try {
       const report = await runEconomyCycle(interaction.user.id);
       const decreeResult = await publishDecrees(interaction);

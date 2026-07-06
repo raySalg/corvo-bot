@@ -4,13 +4,14 @@ const {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
+  MessageFlags,
 } = require('discord.js');
 const House = require('../models/House');
 const { submitDecree } = require('../services/economyService');
 
 const DECREE_MODAL_ID = 'decreto:submit';
 
-function buildDecreeModal(house) {
+function buildDecreeModal() {
   const contentInput = new TextInputBuilder()
     .setCustomId('conteudo')
     .setLabel('Conteúdo do decreto')
@@ -29,7 +30,7 @@ function buildDecreeModal(house) {
 
   return new ModalBuilder()
     .setCustomId(DECREE_MODAL_ID)
-    .setTitle(`Decreto — Casa ${house.name}`.slice(0, 45))
+    .setTitle('Decreto Econômico')
     .addComponents(
       new ActionRowBuilder().addComponents(contentInput),
       new ActionRowBuilder().addComponents(spentInput),
@@ -44,26 +45,13 @@ module.exports = {
     .setDescription('Envia o Decreto Econômico da sua casa (apenas o Senhor da casa).'),
 
   async execute(interaction) {
-    const house = await House.findOne({ lordId: interaction.user.id });
-
-    if (!house) {
-      await interaction.reply({
-        content:
-          '### Apenas o Senhor da casa\n' +
-          'Somente **um jogador por casa** pode enviar o Decreto Econômico: o **Senhor(a)** da casa.\n' +
-          'Você não consta como Senhor de nenhuma casa.',
-        ephemeral: true,
-      });
-      return;
-    }
-
-    await interaction.showModal(buildDecreeModal(house));
+    await interaction.showModal(buildDecreeModal());
   },
 
   async handleModalSubmit(interaction) {
     if (interaction.customId !== DECREE_MODAL_ID) return;
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const house = await House.findOne({ lordId: interaction.user.id });
     if (!house) {
