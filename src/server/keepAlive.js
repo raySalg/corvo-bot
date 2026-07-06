@@ -17,7 +17,9 @@ function startKeepAliveServer() {
     res.status(200).json({
       status: discordStatus.discordReady ? 'ok' : 'starting',
       bot: BOT_NAME,
-      message: discordStatus.discordReady ? 'Estou vivo!' : 'HTTP ok — aguardando Discord...',
+      message: discordStatus.discordReady
+        ? 'Estou vivo!'
+        : `HTTP ok — fase: ${discordStatus.startupPhase}`,
       ...discordStatus,
     });
   });

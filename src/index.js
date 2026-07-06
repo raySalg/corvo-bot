@@ -6,7 +6,7 @@ const { loadCommands } = require('./handlers/commandHandler');
 const { startKeepAliveServer } = require('./server/keepAlive');
 const { validateDiscordEnv } = require('./utils/discordEnv');
 const { BOT_NAME } = require('./constants/bot');
-const { attachDiscordClient } = require('./botState');
+const { attachDiscordClient, setStartupPhase } = require('./botState');
 const { CASAS_REGION_PREFIX, handleCasasRegionButton } = require('./utils/casasView');
 const { sendEphemeral, deferCommandInteraction, MODAL_COMMANDS } = require('./utils/interactionReply');
 
@@ -27,6 +27,25 @@ const client = new Client({
 attachDiscordClient(client);
 
 const commands = loadCommands();
+
+let databaseBootstrapStarted = false;
+
+async function ensureDatabaseAndSeeds() {
+  if (databaseBootstrapStarted) return;
+  databaseBootstrapStarted = true;
+
+  setStartupPhase('mongodb');
+  console.log('[Corvo] Conectando ao MongoDB...');
+
+  try {
+    await connectDatabase();
+    await runStartupSeeds();
+    setStartupPhase('ready');
+  } catch (error) {
+    setStartupPhase('mongodb_failed');
+    console.error('[Corvo] MongoDB indisponível (bot continua no Discord):', error);
+  }
+}
 
 async function runStartupSeeds() {
   await seedDefaultHouses();
@@ -49,9 +68,8 @@ client.once(Events.ClientReady, (readyClient) => {
     );
   }
 
-  void runStartupSeeds().catch((error) => {
-    console.error('[Corvo] Erro ao verificar dados iniciais (bot continua online):', error);
-  });
+  setStartupPhase('discord_online');
+  void ensureDatabaseAndSeeds();
 });
 
 client.on(Events.Error, (error) => {
@@ -158,9 +176,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 async function start() {
   startKeepAliveServer();
 
-  console.log('[Corvo] Conectando ao MongoDB...');
-  await connectDatabase();
-
+  setStartupPhase('discord_login');
   console.log('[Corvo] Conectando ao Discord...');
   await client.login(token);
 }
