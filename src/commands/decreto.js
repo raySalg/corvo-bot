@@ -4,7 +4,6 @@ const {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
-  MessageFlags,
 } = require('discord.js');
 const House = require('../models/House');
 const { submitDecree } = require('../services/economyService');
@@ -50,8 +49,6 @@ module.exports = {
 
   async handleModalSubmit(interaction) {
     if (interaction.customId !== DECREE_MODAL_ID) return;
-
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const house = await House.findOne({ lordId: interaction.user.id });
     if (!house) {

@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const { Client, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
+const { Client, Events, GatewayIntentBits } = require('discord.js');
 const { connectDatabase, seedDefaultHouses, seedHouseEconomy, seedWorldState } = require('./config/database');
 const { loadCommands } = require('./handlers/commandHandler');
 const { startKeepAliveServer } = require('./server/keepAlive');
@@ -8,7 +8,7 @@ const { validateDiscordEnv } = require('./utils/discordEnv');
 const { BOT_NAME } = require('./constants/bot');
 const { attachDiscordClient, setStartupPhase } = require('./botState');
 const { CASAS_REGION_PREFIX, handleCasasRegionButton } = require('./utils/casasView');
-const { sendEphemeral, deferCommandInteraction, MODAL_COMMANDS } = require('./utils/interactionReply');
+const { sendEphemeral, acknowledgeInteraction } = require('./utils/interactionReply');
 
 const { token, clientId, guildId, errors } = validateDiscordEnv();
 
@@ -87,7 +87,7 @@ client.on(Events.ShardReconnecting, (shardId) => {
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isButton() && interaction.customId.startsWith(CASAS_REGION_PREFIX)) {
     try {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await acknowledgeInteraction(interaction);
       await handleCasasRegionButton(interaction);
     } catch (error) {
       console.error('Erro ao processar botão de região:', error);
@@ -113,6 +113,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     try {
+      await acknowledgeInteraction(interaction);
       await command.handleModalSubmit(interaction);
 
       if (!interaction.replied && !interaction.deferred) {
@@ -159,10 +160,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 
   try {
-    if (!MODAL_COMMANDS.has(interaction.commandName)) {
-      await deferCommandInteraction(interaction);
-    }
-
+    await acknowledgeInteraction(interaction);
     await command.execute(interaction);
   } catch (error) {
     console.error(`Erro ao executar /${interaction.commandName}:`, error);

@@ -1,4 +1,5 @@
 const { PermissionFlagsBits } = require('discord.js');
+const { sendEphemeral } = require('./interactionReply');
 
 function isAdmin(interaction) {
   return interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
@@ -6,10 +7,10 @@ function isAdmin(interaction) {
 
 async function requireAdmin(interaction) {
   if (!isAdmin(interaction)) {
-    await interaction.reply({
-      content: '### Acesso negado\nApenas **administradores** do reino podem usar este comando.',
-      ephemeral: true,
-    });
+    await sendEphemeral(
+      interaction,
+      '### Acesso negado\nApenas **administradores** do reino podem usar este comando.',
+    );
     return false;
   }
   return true;

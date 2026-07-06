@@ -1,5 +1,8 @@
 const { MessageFlags } = require('discord.js');
 
+/** Após deferReply, o Discord aguarda até 15 min pela resposta final (editReply). */
+const INTERACTION_FOLLOWUP_MS = 15 * 60 * 1000;
+
 /** Comandos que respondem com showModal — não podem usar deferReply antes do execute. */
 const MODAL_COMMANDS = new Set(['embed', 'decreto']);
 
@@ -42,6 +45,21 @@ async function deferCommandInteraction(interaction, { ephemeral = false } = {}) 
   wrapInteractionReply(interaction);
 }
 
+/** Confirma a interação imediatamente (dentro dos 3 s do Discord) para ganhar até 15 min de processamento. */
+async function acknowledgeInteraction(interaction) {
+  if (interaction.deferred || interaction.replied) return;
+
+  if (interaction.isChatInputCommand()) {
+    if (MODAL_COMMANDS.has(interaction.commandName)) return;
+    await deferCommandInteraction(interaction);
+    return;
+  }
+
+  if (interaction.isModalSubmit() || interaction.isButton()) {
+    await deferCommandInteraction(interaction, { ephemeral: true });
+  }
+}
+
 async function sendEphemeral(interaction, content) {
   const payload = ephemeralPayload(content);
 
@@ -59,9 +77,11 @@ async function sendEphemeral(interaction, content) {
 }
 
 module.exports = {
+  INTERACTION_FOLLOWUP_MS,
   MODAL_COMMANDS,
   ephemeralPayload,
   wrapInteractionReply,
   deferCommandInteraction,
+  acknowledgeInteraction,
   sendEphemeral,
 };
