@@ -7,7 +7,8 @@ const {
   TextInputStyle,
   ActionRowBuilder,
 } = require('discord.js');
-const { requireAdmin } = require('../../utils/permissions');
+const { requireAdmin, isAdmin, ACCESS_DENIED_MESSAGE } = require('../../utils/permissions');
+const { sendEphemeral } = require('../../utils/interactionReply');
 const { randomEmbedColor, parseEmbedColor } = require('../../utils/embed');
 const { publishEmbed } = require('../../utils/publishMessage');
 
@@ -194,6 +195,7 @@ function buildEmbedModal() {
 
 module.exports = {
   EMBED_MODAL_ID,
+  buildEmbedModal,
 
   data: new SlashCommandBuilder()
     .setName('embed')
@@ -201,7 +203,10 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
-    if (!(await requireAdmin(interaction))) return;
+    if (!isAdmin(interaction)) {
+      await sendEphemeral(interaction, ACCESS_DENIED_MESSAGE);
+      return;
+    }
 
     await interaction.showModal(buildEmbedModal());
   },

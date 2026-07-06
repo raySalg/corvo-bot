@@ -38,6 +38,7 @@ function buildDecreeModal() {
 
 module.exports = {
   DECREE_MODAL_ID,
+  buildDecreeModal,
 
   data: new SlashCommandBuilder()
     .setName('decreto')

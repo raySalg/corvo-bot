@@ -1,16 +1,25 @@
 const { PermissionFlagsBits } = require('discord.js');
 const { sendEphemeral } = require('./interactionReply');
 
+const ACCESS_DENIED_MESSAGE =
+  '### Acesso negado\nApenas **administradores** do reino podem usar este comando.';
+
+function memberIsAdmin(member) {
+  if (!member?.permissions) return false;
+  return (BigInt(member.permissions) & BigInt(PermissionFlagsBits.Administrator)) !== 0n;
+}
+
 function isAdmin(interaction) {
-  return interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
+  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    return true;
+  }
+
+  return memberIsAdmin(interaction.member);
 }
 
 async function requireAdmin(interaction) {
   if (!isAdmin(interaction)) {
-    await sendEphemeral(
-      interaction,
-      '### Acesso negado\nApenas **administradores** do reino podem usar este comando.',
-    );
+    await sendEphemeral(interaction, ACCESS_DENIED_MESSAGE);
     return false;
   }
   return true;
@@ -26,4 +35,4 @@ function slugify(name) {
     .replace(/^-+|-+$/g, '');
 }
 
-module.exports = { isAdmin, requireAdmin, slugify };
+module.exports = { isAdmin, memberIsAdmin, requireAdmin, slugify, ACCESS_DENIED_MESSAGE };

@@ -3,12 +3,11 @@ require('dotenv').config();
 const { Client, Events, GatewayIntentBits } = require('discord.js');
 const { connectDatabase, seedDefaultHouses, seedHouseEconomy, seedWorldState } = require('./config/database');
 const { loadCommands } = require('./handlers/commandHandler');
+const { routeInteraction } = require('./handlers/interactionRouter');
 const { startKeepAliveServer } = require('./server/keepAlive');
 const { validateDiscordEnv } = require('./utils/discordEnv');
 const { BOT_NAME } = require('./constants/bot');
 const { attachDiscordClient, setStartupPhase } = require('./botState');
-const { CASAS_REGION_PREFIX, handleCasasRegionButton } = require('./utils/casasView');
-const { sendEphemeral, acknowledgeInteraction } = require('./utils/interactionReply');
 
 const { token, clientId, guildId, errors } = validateDiscordEnv();
 
@@ -85,94 +84,14 @@ client.on(Events.ShardReconnecting, (shardId) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  if (interaction.isButton() && interaction.customId.startsWith(CASAS_REGION_PREFIX)) {
-    try {
-      await acknowledgeInteraction(interaction);
-      await handleCasasRegionButton(interaction);
-    } catch (error) {
-      console.error('Erro ao processar botão de região:', error);
-      await sendEphemeral(
-        interaction,
-        '### Erro\nNão foi possível carregar esta região. Tente novamente.',
-      );
-    }
-    return;
-  }
-
-  if (interaction.isModalSubmit()) {
-    const modalCommandName = interaction.customId.split(':')[0];
-    const command = commands.get(modalCommandName);
-
-    if (!command?.handleModalSubmit) {
-      console.error(`Modal sem handler registrado: ${interaction.customId}`);
-      await sendEphemeral(
-        interaction,
-        '### Erro\nEste formulário não está mais disponível. Execute o comando novamente.',
-      );
-      return;
-    }
-
-    try {
-      await acknowledgeInteraction(interaction);
-      await command.handleModalSubmit(interaction);
-
-      if (!interaction.replied && !interaction.deferred) {
-        console.error(`Modal de /${modalCommandName} concluiu sem resposta: ${interaction.customId}`);
-        await sendEphemeral(
-          interaction,
-          '### Erro\nNão foi possível processar o formulário. Tente novamente.',
-        );
-      }
-    } catch (error) {
-      console.error(`Erro ao processar modal de /${modalCommandName}:`, error);
-      await sendEphemeral(
-        interaction,
-        '### Erro\nNão foi possível processar o formulário. Tente novamente.',
-      );
-    }
-    return;
-  }
-
-  if (interaction.isAutocomplete()) {
-    const command = commands.get(interaction.commandName);
-    if (!command?.autocomplete) return;
-
-    try {
-      await command.autocomplete(interaction);
-    } catch (error) {
-      console.error(`Erro no autocomplete de /${interaction.commandName}:`, error);
-    }
-    return;
-  }
-
-  if (!interaction.isChatInputCommand()) return;
-
-  const command = commands.get(interaction.commandName);
-  if (!command) {
-    console.error(
-      `[Corvo] Comando /${interaction.commandName} não encontrado (app ${interaction.applicationId}, guild ${interaction.guildId}).`,
-    );
-    await sendEphemeral(
-      interaction,
-      '### Comando indisponível\nEste comando não está registrado neste servidor. Peça a um admin para redeployar o bot.',
-    );
-    return;
-  }
-
-  try {
-    await acknowledgeInteraction(interaction);
-    await command.execute(interaction);
-  } catch (error) {
-    console.error(`Erro ao executar /${interaction.commandName}:`, error);
-    await sendEphemeral(
-      interaction,
-      '### Erro\nOcorreu um erro ao executar este comando. Tente novamente.',
-    );
-  }
+  console.log(
+    `[Corvo] Interação via Gateway: type=${interaction.type} command=${interaction.commandName ?? interaction.customId ?? '-'}`,
+  );
+  await routeInteraction(interaction, commands);
 });
 
 async function start() {
-  startKeepAliveServer();
+  startKeepAliveServer({ client, commands });
 
   setStartupPhase('discord_login');
   console.log('[Corvo] Conectando ao Discord...');
