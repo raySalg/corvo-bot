@@ -1,6 +1,7 @@
 const express = require('express');
 const { BOT_NAME } = require('../constants/bot');
 const { getDiscordStatus } = require('../botState');
+const { getDiscordPublicKey } = require('../constants/discord');
 const { createInteractionsHttpHandler } = require('./interactionsHttp');
 
 function startKeepAliveServer({ client, commands } = {}) {
@@ -29,15 +30,15 @@ function startKeepAliveServer({ client, commands } = {}) {
 
   app.get('/health', (_req, res) => {
     const discordStatus = getDiscordStatus();
-    const hasPublicKey = Boolean(process.env.DISCORD_PUBLIC_KEY?.trim());
+    const hasPublicKey = Boolean(getDiscordPublicKey());
 
     let hint = null;
     if (!discordStatus.discordReady) {
-      if (!hasPublicKey) {
-        hint =
-          'URGENTE: adicione DISCORD_PUBLIC_KEY no Render (Developer Portal → Public Key) e Interactions Endpoint URL = https://sete-bot.onrender.com/interactions';
-      } else if (discordStatus.startupPhase === 'discord_login_failed' || discordStatus.lastDiscordError?.includes('rejeitado')) {
+      if (discordStatus.startupPhase === 'discord_login_failed' || discordStatus.lastDiscordError?.includes('rejeitado')) {
         hint = 'DISCORD_TOKEN inválido. Developer Portal → Bot → Reset Token → cole no Render sem aspas.';
+      } else if (!discordStatus.tokenRestOk && discordStatus.loginWaitSeconds > 20) {
+        hint =
+          'Confirme Interactions Endpoint URL = https://sete-bot.onrender.com/interactions no Developer Portal.';
       } else if (discordStatus.tokenRestOk && discordStatus.loginWaitSeconds > 45) {
         hint =
           'Token REST ok, mas Gateway WebSocket travou. Comandos devem funcionar via /interactions; para status online, tente Manual Deploy no Render.';
@@ -60,12 +61,8 @@ function startKeepAliveServer({ client, commands } = {}) {
 
   app.listen(port, '0.0.0.0', () => {
     console.log(`[Corvo] Servidor HTTP ativo na porta ${port}.`);
-    if (process.env.DISCORD_PUBLIC_KEY?.trim()) {
+    if (getDiscordPublicKey()) {
       console.log('[Corvo] Endpoint de interações: POST /interactions');
-    } else {
-      console.warn(
-        '[Corvo] DISCORD_PUBLIC_KEY não definida — configure no Render se o Developer Portal tiver Interactions Endpoint URL.',
-      );
     }
   });
 }

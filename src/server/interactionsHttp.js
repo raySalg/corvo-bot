@@ -11,6 +11,7 @@ const {
   MessageFlags,
 } = require('discord.js');
 const { MODAL_COMMANDS, wrapInteractionReply } = require('../utils/interactionReply');
+const { getDiscordPublicKey } = require('../constants/discord');
 const { routeInteraction } = require('../handlers/interactionRouter');
 const { memberIsAdmin, ACCESS_DENIED_MESSAGE } = require('../utils/permissions');
 const { CASAS_REGION_PREFIX } = require('../utils/casasView');
@@ -51,9 +52,8 @@ function createDeferredInteraction(client, body, { ephemeral = false } = {}) {
 
 function createInteractionsHttpHandler({ client, commands }) {
   return async function handleDiscordInteraction(req, res) {
-    const publicKey = process.env.DISCORD_PUBLIC_KEY?.trim();
+    const publicKey = getDiscordPublicKey();
     if (!publicKey) {
-      console.error('[Corvo] DISCORD_PUBLIC_KEY ausente — configure no Render (Developer Portal → General Information → Public Key).');
       res.status(503).send('DISCORD_PUBLIC_KEY not configured');
       return;
     }
