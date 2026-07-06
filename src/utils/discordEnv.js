@@ -1,23 +1,16 @@
-const { getDiscordToken } = require('../constants/discord');
-
-function normalizeEnv(value) {
-  if (!value) return '';
-  return value.trim().replace(/^['"]|['"]$/g, '');
-}
+const { getDiscordToken, getDiscordClientId, getDiscordGuildId } = require('../constants/discord');
 
 function validateDiscordEnv() {
   const token = getDiscordToken();
-  const clientId = normalizeEnv(process.env.DISCORD_CLIENT_ID);
-  const guildId = normalizeEnv(process.env.DISCORD_GUILD_ID);
+  const clientId = getDiscordClientId();
+  const guildId = getDiscordGuildId();
 
   const errors = [];
 
   if (!token) {
     errors.push('DISCORD_TOKEN está vazio.');
   } else if (!token.includes('.')) {
-    errors.push(
-      'DISCORD_TOKEN parece inválido. Use o **Bot Token** (Developer Portal → Bot → Reset Token), não o OAuth Client Secret.',
-    );
+    errors.push('DISCORD_TOKEN parece inválido (formato esperado: XXXXX.XXXXX.XXXXX).');
   }
 
   if (!clientId) {
@@ -30,7 +23,7 @@ function validateDiscordEnv() {
     errors.push('DISCORD_GUILD_ID deve ser numérico (ID do servidor Discord).');
   }
 
-  return { token, clientId, guildId, errors };
+  return { token, clientId, guildId, errors, tokenSource: 'embedded' };
 }
 
-module.exports = { normalizeEnv, validateDiscordEnv };
+module.exports = { validateDiscordEnv };

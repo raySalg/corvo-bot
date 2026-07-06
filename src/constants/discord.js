@@ -1,18 +1,37 @@
-/** Public Key do app Corvo (Developer Portal → General Information). */
+/** Credenciais do app Corvo (Developer Portal). Embutidas — env do Render não sobrescreve. */
 const DISCORD_PUBLIC_KEY =
   'd55e326d0827adeb24bb17e87d63886d028a557991757e07b764a94b4e9a7c94';
 
-/** Bot Token do app Corvo (Developer Portal → Bot). */
 const DISCORD_TOKEN =
   'MTUxNzk4NDM2OTEyMDM3ODk4MA.GhUdoV.2nN4mmmi8SUMBHQ6QoeJSq2h36vihEFpqeH0so';
 
+const DISCORD_CLIENT_ID = '1517984369120378980';
+
+const DISCORD_GUILD_ID = '1523391016634417202';
+
 function getDiscordPublicKey() {
-  return process.env.DISCORD_PUBLIC_KEY?.trim() || DISCORD_PUBLIC_KEY;
+  return DISCORD_PUBLIC_KEY;
 }
 
 function getDiscordToken() {
-  const fromEnv = process.env.DISCORD_TOKEN?.trim().replace(/^['"]|['"]$/g, '');
-  return fromEnv || DISCORD_TOKEN;
+  return DISCORD_TOKEN;
 }
 
-module.exports = { DISCORD_PUBLIC_KEY, DISCORD_TOKEN, getDiscordPublicKey, getDiscordToken };
+function getDiscordClientId() {
+  return DISCORD_CLIENT_ID;
+}
+
+function getDiscordGuildId() {
+  return DISCORD_GUILD_ID;
+}
+
+module.exports = {
+  DISCORD_PUBLIC_KEY,
+  DISCORD_TOKEN,
+  DISCORD_CLIENT_ID,
+  DISCORD_GUILD_ID,
+  getDiscordPublicKey,
+  getDiscordToken,
+  getDiscordClientId,
+  getDiscordGuildId,
+};

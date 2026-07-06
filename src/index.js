@@ -118,7 +118,7 @@ async function start() {
 
   markDiscordLoginStart();
   setStartupPhase('discord_token_check');
-  console.log('[Corvo] Validando DISCORD_TOKEN via API REST...');
+  console.log('[Corvo] Validando token embutido via API REST...');
 
   try {
     const botUser = await validateBotToken(token);
@@ -127,10 +127,8 @@ async function start() {
   } catch (error) {
     setStartupPhase('discord_login_failed');
     setDiscordError(error);
-    throw new Error(
-      `DISCORD_TOKEN rejeitado pela API do Discord (${error.status ?? error.code ?? 'erro'}). ` +
-        'Gere um novo token em Developer Portal → Bot → Reset Token.',
-    );
+    console.error('[Corvo] Token rejeitado ou timeout REST:', error.message ?? error);
+    console.warn('[Corvo] Tentando Gateway mesmo assim...');
   }
 
   void connectDiscordGateway();
@@ -157,6 +155,5 @@ process.on('uncaughtException', (error) => {
 });
 
 start().catch((error) => {
-  console.error('[Corvo] Falha ao iniciar:', error);
-  process.exit(1);
+  console.error('[Corvo] Falha crítica ao iniciar:', error);
 });

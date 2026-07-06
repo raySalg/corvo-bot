@@ -36,9 +36,10 @@ function startKeepAliveServer({ client, commands } = {}) {
     if (!discordStatus.discordReady) {
       if (discordStatus.startupPhase === 'discord_login_failed' || discordStatus.lastDiscordError?.includes('rejeitado')) {
         hint = 'DISCORD_TOKEN inválido. Developer Portal → Bot → Reset Token → cole no Render sem aspas.';
-      } else if (!discordStatus.tokenRestOk && discordStatus.loginWaitSeconds > 20) {
+      } else if (!discordStatus.tokenRestOk && discordStatus.startupPhase === 'discord_login_failed') {
         hint =
-          'Confirme Interactions Endpoint URL = https://sete-bot.onrender.com/interactions no Developer Portal.';
+          'Token embutido rejeitado pelo Discord. Developer Portal → Bot → Reset Token → atualize src/constants/discord.js.';
+      } else if (!discordStatus.tokenRestOk && discordStatus.loginWaitSeconds > 20) {
       } else if (discordStatus.tokenRestOk && discordStatus.loginWaitSeconds > 45) {
         hint =
           'Token REST ok, mas Gateway WebSocket travou. Comandos devem funcionar via /interactions; para status online, tente Manual Deploy no Render.';
@@ -54,6 +55,7 @@ function startKeepAliveServer({ client, commands } = {}) {
         ? 'Estou vivo!'
         : `HTTP ok — fase: ${discordStatus.startupPhase}`,
       interactionsEndpoint: hasPublicKey,
+      tokenSource: 'embedded',
       hint,
       ...discordStatus,
     });
