@@ -1,10 +1,12 @@
+const { getDiscordToken } = require('../constants/discord');
+
 function normalizeEnv(value) {
   if (!value) return '';
   return value.trim().replace(/^['"]|['"]$/g, '');
 }
 
 function validateDiscordEnv() {
-  const token = normalizeEnv(process.env.DISCORD_TOKEN);
+  const token = getDiscordToken();
   const clientId = normalizeEnv(process.env.DISCORD_CLIENT_ID);
   const guildId = normalizeEnv(process.env.DISCORD_GUILD_ID);
 
