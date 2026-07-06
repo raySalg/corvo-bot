@@ -1,20 +1,24 @@
 const express = require('express');
-
 const { BOT_NAME } = require('../constants/bot');
+const { getDiscordStatus } = require('../botState');
 
 function startKeepAliveServer() {
   const app = express();
   const port = Number(process.env.PORT) || 3000;
 
   app.get('/', (_req, res) => {
-    res.status(200).send('Estou vivo!');
+    const { discordReady } = getDiscordStatus();
+    res.status(200).send(discordReady ? 'Estou vivo!' : 'HTTP ok — conectando ao Discord...');
   });
 
   app.get('/health', (_req, res) => {
+    const discordStatus = getDiscordStatus();
+
     res.status(200).json({
-      status: 'ok',
+      status: discordStatus.discordReady ? 'ok' : 'starting',
       bot: BOT_NAME,
-      message: 'Estou vivo!',
+      message: discordStatus.discordReady ? 'Estou vivo!' : 'HTTP ok — aguardando Discord...',
+      ...discordStatus,
     });
   });
 

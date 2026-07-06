@@ -68,14 +68,15 @@ async function deploy() {
       console.error('[Corvo] Como corrigir:');
       console.error('  1. Convide o bot para o servidor:');
       console.error(
-        `     https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=2147485696&scope=bot%20applications.commands`,
+        `     https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=2147485696&scope=bot%20applications.commands&guild_id=${guildId || ''}`,
       );
       console.error(`  2. Verifique se DISCORD_GUILD_ID (${guildId || 'não definido'}) é o servidor correto`);
       console.error('  3. No Discord: clique direito no servidor → Copiar ID (modo desenvolvedor ativo)');
     } else {
       console.error('[Corvo] Erro ao registrar comandos:', error);
     }
-    process.exit(1);
+
+    console.warn('[Corvo] Deploy de comandos falhou; o bot será iniciado mesmo assim.');
   }
 }
 

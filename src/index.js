@@ -1,18 +1,14 @@
 require('dotenv').config();
 
 const { Client, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
-const {
-  connectDatabase,
-  seedDefaultHouses,
-  seedHouseEconomy,
-  seedWorldState,
-} = require('./config/database');
+const { connectDatabase, seedDefaultHouses, seedHouseEconomy, seedWorldState } = require('./config/database');
 const { loadCommands } = require('./handlers/commandHandler');
 const { startKeepAliveServer } = require('./server/keepAlive');
 const { validateDiscordEnv } = require('./utils/discordEnv');
 const { BOT_NAME } = require('./constants/bot');
+const { attachDiscordClient } = require('./botState');
 const { CASAS_REGION_PREFIX, handleCasasRegionButton } = require('./utils/casasView');
-const { ephemeralPayload, sendEphemeral, deferCommandInteraction, MODAL_COMMANDS } = require('./utils/interactionReply');
+const { sendEphemeral, deferCommandInteraction, MODAL_COMMANDS } = require('./utils/interactionReply');
 
 const { token, clientId, guildId, errors } = validateDiscordEnv();
 
@@ -28,7 +24,16 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds],
 });
 
+attachDiscordClient(client);
+
 const commands = loadCommands();
+
+async function runStartupSeeds() {
+  await seedDefaultHouses();
+  await seedWorldState();
+  await seedHouseEconomy();
+  console.log('[Corvo] Dados iniciais verificados.');
+}
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`[Corvo] ${BOT_NAME} despertou como ${readyClient.user.tag}`);
@@ -43,6 +48,22 @@ client.once(Events.ClientReady, (readyClient) => {
       `[Corvo] DISCORD_CLIENT_ID (${clientId}) difere do app conectado (${readyClient.application.id}).`,
     );
   }
+
+  void runStartupSeeds().catch((error) => {
+    console.error('[Corvo] Erro ao verificar dados iniciais (bot continua online):', error);
+  });
+});
+
+client.on(Events.Error, (error) => {
+  console.error('[Corvo] Erro no cliente Discord:', error);
+});
+
+client.on(Events.ShardDisconnect, (_event, shardId) => {
+  console.warn(`[Corvo] Shard ${shardId} desconectado. Reconectando...`);
+});
+
+client.on(Events.ShardReconnecting, (shardId) => {
+  console.log(`[Corvo] Shard ${shardId} reconectando...`);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -136,12 +157,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 async function start() {
   startKeepAliveServer();
+
+  console.log('[Corvo] Conectando ao MongoDB...');
   await connectDatabase();
-  await seedDefaultHouses();
-  await seedWorldState();
-  await seedHouseEconomy();
+
+  console.log('[Corvo] Conectando ao Discord...');
   await client.login(token);
 }
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Corvo] Promessa rejeitada sem tratamento:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[Corvo] Exceção não tratada:', error);
+});
 
 start().catch((error) => {
   console.error('[Corvo] Falha ao iniciar:', error);
