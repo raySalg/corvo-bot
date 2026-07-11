@@ -106,7 +106,7 @@ const COMMAND_CATALOG = {
     },
     {
       name: 'embed',
-      description: 'Abre formulário para publicar embed com título, corpo multilinha, cor, imagem e rodapé.',
+      description: 'Abre formulário para publicar embed com título, corpo, emblema, imagem e rodapé.',
     },
   ],
 };

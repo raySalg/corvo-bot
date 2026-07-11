@@ -9,7 +9,7 @@ const {
 } = require('discord.js');
 const { requireAdmin, isAdmin, ACCESS_DENIED_MESSAGE } = require('../../utils/permissions');
 const { sendEphemeral } = require('../../utils/interactionReply');
-const { randomEmbedColor, parseEmbedColor } = require('../../utils/embed');
+const { randomEmbedColor } = require('../../utils/embed');
 const { publishEmbed } = require('../../utils/publishMessage');
 
 const EMBED_MODAL_ID = 'embed:submit';
@@ -54,38 +54,22 @@ async function resolveInteractionChannel(interaction) {
 async function buildAndSendEmbed(interaction, fields) {
   const titulo = fields.titulo.trim();
   const corpo = normalizeEmbedText(fields.corpo);
+  const corpoTrimmed = corpo.trim();
   const rodapeRaw = fields.rodape?.trim() || '';
   const rodape = rodapeRaw ? normalizeEmbedText(rodapeRaw) : null;
   const imagemInput = fields.imagem?.trim() || null;
-  const corInput = fields.cor?.trim() || null;
+  const emblemaInput = fields.emblema?.trim() || null;
 
-  if (!titulo) {
+  if (!titulo && !corpoTrimmed && !rodape && !imagemInput && !emblemaInput) {
     await interaction.editReply({
-      content: '### Título obrigatório\nInforme um título para o embed.',
+      content:
+        '### Conteúdo insuficiente\n' +
+        'Informe pelo menos título, corpo, rodapé, imagem ou emblema.',
     });
     return;
   }
 
-  if (!corpo.trim()) {
-    await interaction.editReply({
-      content: '### Corpo obrigatório\nInforme o conteúdo da mensagem.',
-    });
-    return;
-  }
-
-  let color;
-  if (corInput) {
-    try {
-      color = parseEmbedColor(corInput);
-    } catch (error) {
-      await interaction.editReply({
-        content: `### Cor inválida\n${error.message}`,
-      });
-      return;
-    }
-  } else {
-    color = randomEmbedColor();
-  }
+  const color = randomEmbedColor();
 
   let imagem;
   if (imagemInput) {
@@ -99,12 +83,24 @@ async function buildAndSendEmbed(interaction, fields) {
     }
   }
 
-  const embed = new EmbedBuilder()
-    .setColor(color)
-    .setTitle(titulo)
-    .setDescription(corpo);
+  let emblema;
+  if (emblemaInput) {
+    try {
+      emblema = parseImageUrl(emblemaInput);
+    } catch (error) {
+      await interaction.editReply({
+        content: `### Emblema inválido\n${error.message}`,
+      });
+      return;
+    }
+  }
 
+  const embed = new EmbedBuilder().setColor(color);
+
+  if (titulo) embed.setTitle(titulo);
+  if (corpoTrimmed) embed.setDescription(corpo);
   if (rodape) embed.setFooter({ text: rodape });
+  if (emblema) embed.setThumbnail(emblema);
   if (imagem) embed.setImage(imagem);
 
   const channel = await resolveInteractionChannel(interaction);
@@ -149,16 +145,16 @@ async function buildAndSendEmbed(interaction, fields) {
 function buildEmbedModal() {
   const tituloInput = new TextInputBuilder()
     .setCustomId('titulo')
-    .setLabel('Título')
+    .setLabel('Título (opcional)')
     .setStyle(TextInputStyle.Short)
-    .setRequired(true)
+    .setRequired(false)
     .setMaxLength(256);
 
   const corpoInput = new TextInputBuilder()
     .setCustomId('corpo')
-    .setLabel('Corpo da mensagem')
+    .setLabel('Corpo da mensagem (opcional)')
     .setStyle(TextInputStyle.Paragraph)
-    .setRequired(true)
+    .setRequired(false)
     .setMaxLength(4000);
 
   const rodapeInput = new TextInputBuilder()
@@ -168,18 +164,19 @@ function buildEmbedModal() {
     .setRequired(false)
     .setMaxLength(2048);
 
-  const imagemInput = new TextInputBuilder()
-    .setCustomId('imagem')
-    .setLabel('URL da imagem (opcional)')
-    .setStyle(TextInputStyle.Short)
-    .setRequired(false);
-
-  const corInput = new TextInputBuilder()
-    .setCustomId('cor')
-    .setLabel('Cor RGB ou hex (opcional)')
+  const emblemaInput = new TextInputBuilder()
+    .setCustomId('emblema')
+    .setLabel('URL do emblema (opcional)')
     .setStyle(TextInputStyle.Short)
     .setRequired(false)
-    .setPlaceholder('255,0,0 ou #FF0000');
+    .setPlaceholder('Imagem pequena ao lado do texto');
+
+  const imagemInput = new TextInputBuilder()
+    .setCustomId('imagem')
+    .setLabel('URL da imagem grande (opcional)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setPlaceholder('Imagem exibida abaixo do texto');
 
   return new ModalBuilder()
     .setCustomId(EMBED_MODAL_ID)
@@ -188,8 +185,8 @@ function buildEmbedModal() {
       new ActionRowBuilder().addComponents(tituloInput),
       new ActionRowBuilder().addComponents(corpoInput),
       new ActionRowBuilder().addComponents(rodapeInput),
+      new ActionRowBuilder().addComponents(emblemaInput),
       new ActionRowBuilder().addComponents(imagemInput),
-      new ActionRowBuilder().addComponents(corInput),
     );
 }
 
@@ -220,8 +217,8 @@ module.exports = {
       titulo: getModalTextInput(interaction, 'titulo'),
       corpo: getModalTextInput(interaction, 'corpo'),
       rodape: getModalTextInput(interaction, 'rodape'),
+      emblema: getModalTextInput(interaction, 'emblema'),
       imagem: getModalTextInput(interaction, 'imagem'),
-      cor: getModalTextInput(interaction, 'cor'),
     });
   },
 };
