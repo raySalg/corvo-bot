@@ -106,7 +106,7 @@ const COMMAND_CATALOG = {
     },
     {
       name: 'embed',
-      description: 'Abre formulário para publicar embed com título, corpo, emblema, imagem e rodapé.',
+      description: 'Abre formulário para publicar embed. Use cor: para RGB ou hex (ex: #FF0000).',
     },
   ],
 };

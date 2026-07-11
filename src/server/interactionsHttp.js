@@ -15,7 +15,7 @@ const { getDiscordPublicKey } = require('../constants/discord');
 const { routeInteraction } = require('../handlers/interactionRouter');
 const { memberIsAdmin, ACCESS_DENIED_MESSAGE } = require('../utils/permissions');
 const { CASAS_REGION_PREFIX } = require('../utils/casasView');
-const { buildEmbedModal } = require('../commands/admin/embed');
+const { buildEmbedModal, resolveEmbedColor } = require('../commands/admin/embed');
 const { buildDecreeModal } = require('../commands/decreto');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral;
@@ -48,6 +48,11 @@ function createDeferredInteraction(client, body, { ephemeral = false } = {}) {
 
   markDeferred(interaction, { ephemeral });
   return interaction;
+}
+
+function getCommandStringOption(body, name) {
+  const option = body.data.options?.find((entry) => entry.name === name && entry.type === 3);
+  return option?.value ?? null;
 }
 
 function createInteractionsHttpHandler({ client, commands }) {
@@ -114,7 +119,27 @@ function createInteractionsHttpHandler({ client, commands }) {
           return;
         }
 
-        const modal = commandName === 'embed' ? buildEmbedModal() : buildDecreeModal();
+        let modal;
+        if (commandName === 'embed') {
+          const corInput = getCommandStringOption(body, 'cor');
+          if (corInput) {
+            try {
+              resolveEmbedColor(corInput);
+            } catch (error) {
+              res.json({
+                type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+                data: {
+                  content: `### Cor inválida\n${error.message}`,
+                  flags: EPHEMERAL_FLAG,
+                },
+              });
+              return;
+            }
+          }
+          modal = buildEmbedModal(corInput);
+        } else {
+          modal = buildDecreeModal();
+        }
         res.json({
           type: InteractionResponseType.MODAL,
           data: modal.toJSON(),

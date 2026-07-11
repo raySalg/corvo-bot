@@ -9,10 +9,28 @@ const {
 } = require('discord.js');
 const { requireAdmin, isAdmin, ACCESS_DENIED_MESSAGE } = require('../../utils/permissions');
 const { sendEphemeral } = require('../../utils/interactionReply');
-const { randomEmbedColor } = require('../../utils/embed');
+const { randomEmbedColor, parseEmbedColor } = require('../../utils/embed');
 const { publishEmbed } = require('../../utils/publishMessage');
 
 const EMBED_MODAL_ID = 'embed:submit';
+const EMBED_MODAL_COLOR_PREFIX = `${EMBED_MODAL_ID}:c:`;
+
+function buildEmbedModalId(corInput) {
+  const cor = corInput?.trim();
+  if (!cor) return EMBED_MODAL_ID;
+  return `${EMBED_MODAL_COLOR_PREFIX}${encodeURIComponent(cor)}`;
+}
+
+function parseEmbedModalId(customId) {
+  if (customId === EMBED_MODAL_ID) return { cor: null };
+  if (!customId.startsWith(EMBED_MODAL_COLOR_PREFIX)) return null;
+  return { cor: decodeURIComponent(customId.slice(EMBED_MODAL_COLOR_PREFIX.length)) };
+}
+
+function resolveEmbedColor(corInput) {
+  if (!corInput?.trim()) return randomEmbedColor();
+  return parseEmbedColor(corInput);
+}
 
 function parseImageUrl(input) {
   let url;
@@ -69,7 +87,15 @@ async function buildAndSendEmbed(interaction, fields) {
     return;
   }
 
-  const color = randomEmbedColor();
+  let color;
+  try {
+    color = resolveEmbedColor(fields.cor);
+  } catch (error) {
+    await interaction.editReply({
+      content: `### Cor inválida\n${error.message}`,
+    });
+    return;
+  }
 
   let imagem;
   if (imagemInput) {
@@ -142,7 +168,7 @@ async function buildAndSendEmbed(interaction, fields) {
   await interaction.editReply({ content: successMessage });
 }
 
-function buildEmbedModal() {
+function buildEmbedModal(corInput) {
   const tituloInput = new TextInputBuilder()
     .setCustomId('titulo')
     .setLabel('Título (opcional)')
@@ -179,7 +205,7 @@ function buildEmbedModal() {
     .setPlaceholder('Imagem exibida abaixo do texto');
 
   return new ModalBuilder()
-    .setCustomId(EMBED_MODAL_ID)
+    .setCustomId(buildEmbedModalId(corInput))
     .setTitle('Criar embed')
     .addComponents(
       new ActionRowBuilder().addComponents(tituloInput),
@@ -193,11 +219,20 @@ function buildEmbedModal() {
 module.exports = {
   EMBED_MODAL_ID,
   buildEmbedModal,
+  buildEmbedModalId,
+  parseEmbedModalId,
+  resolveEmbedColor,
 
   data: new SlashCommandBuilder()
     .setName('embed')
     .setDescription('Publica mensagem customizada em embed no canal.')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addStringOption((option) =>
+      option
+        .setName('cor')
+        .setDescription('Cor do embed em RGB (255,0,0) ou hexadecimal (#FF0000)')
+        .setRequired(false),
+    ),
 
   async execute(interaction) {
     if (!isAdmin(interaction)) {
@@ -205,11 +240,22 @@ module.exports = {
       return;
     }
 
-    await interaction.showModal(buildEmbedModal());
+    const corInput = interaction.options.getString('cor');
+    if (corInput) {
+      try {
+        parseEmbedColor(corInput);
+      } catch (error) {
+        await sendEphemeral(interaction, `### Cor inválida\n${error.message}`);
+        return;
+      }
+    }
+
+    await interaction.showModal(buildEmbedModal(corInput));
   },
 
   async handleModalSubmit(interaction) {
-    if (interaction.customId !== EMBED_MODAL_ID) return;
+    const modalMeta = parseEmbedModalId(interaction.customId);
+    if (!modalMeta) return;
 
     if (!(await requireAdmin(interaction))) return;
 
@@ -219,6 +265,7 @@ module.exports = {
       rodape: getModalTextInput(interaction, 'rodape'),
       emblema: getModalTextInput(interaction, 'emblema'),
       imagem: getModalTextInput(interaction, 'imagem'),
+      cor: modalMeta.cor,
     });
   },
 };
