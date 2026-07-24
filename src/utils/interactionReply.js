@@ -6,6 +6,9 @@ const INTERACTION_FOLLOWUP_MS = 15 * 60 * 1000;
 /** Comandos que respondem com showModal — não podem usar deferReply antes do execute. */
 const MODAL_COMMANDS = new Set(['embed']);
 
+/** Comandos longos que devem ficar só para quem executou. */
+const EPHEMERAL_DEFER_COMMANDS = new Set(['analisar-ia']);
+
 function ephemeralPayload(contentOrOptions) {
   if (typeof contentOrOptions === 'string') {
     return { content: contentOrOptions, flags: MessageFlags.Ephemeral };
@@ -51,7 +54,9 @@ async function acknowledgeInteraction(interaction) {
 
   if (interaction.isChatInputCommand()) {
     if (MODAL_COMMANDS.has(interaction.commandName)) return;
-    await deferCommandInteraction(interaction);
+    await deferCommandInteraction(interaction, {
+      ephemeral: EPHEMERAL_DEFER_COMMANDS.has(interaction.commandName),
+    });
     return;
   }
 
@@ -79,6 +84,7 @@ async function sendEphemeral(interaction, content) {
 module.exports = {
   INTERACTION_FOLLOWUP_MS,
   MODAL_COMMANDS,
+  EPHEMERAL_DEFER_COMMANDS,
   ephemeralPayload,
   wrapInteractionReply,
   deferCommandInteraction,

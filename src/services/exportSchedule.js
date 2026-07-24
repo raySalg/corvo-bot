@@ -2,7 +2,7 @@ const { ChannelType, AttachmentBuilder } = require('discord.js');
 const { getDiscordGuildId } = require('../constants/discord');
 const { collectMessagesInRange, formatMultiChannelTxt } = require('../utils/messageExport');
 const { fetchAllForumThreads } = require('../utils/forumThreads');
-const { analyzeMessagesWithGemini, splitDiscordContent } = require('./geminiService');
+const { analyzeMessagesWithGemini, sendAsDiscordMessages } = require('./geminiService');
 const ExportSchedule = require('../models/ExportSchedule');
 
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -483,19 +483,10 @@ async function runScheduledAiAnalysis(client, { manual = false } = {}) {
       `Período **${fromRaw} → ${toRaw}** · ${sections.length} canal(is)/tópico(s) · ${total} mensagem(ns)` +
       (analysis.truncatedInput ? ' · material truncado' : '');
 
-    const chunks = splitDiscordContent(analysis.content);
-    if (chunks.length === 1 && Buffer.byteLength(analysis.content, 'utf8') < 1800) {
-      await destination.send({ content: `${header}\n\n${chunks[0]}` });
-    } else {
-      const stamp = `${fromRaw}_${toRaw}`;
-      const file = new AttachmentBuilder(Buffer.from(analysis.content, 'utf8'), {
-        name: `analise_ia_${stamp}.txt`,
-      });
-      await destination.send({
-        content: `${header}\n\n${chunks[0].slice(0, 1500)}${chunks.length > 1 || analysis.content.length > 1500 ? '\n\n_(resposta completa no anexo)_' : ''}`,
-        files: [file],
-      });
-    }
+    const { messageCount } = await sendAsDiscordMessages(destination, {
+      header,
+      content: analysis.content,
+    });
 
     const nowParts = getSaoPauloParts();
     await saveScheduleConfig({
@@ -506,13 +497,15 @@ async function runScheduledAiAnalysis(client, { manual = false } = {}) {
     });
 
     console.log(
-      `[Corvo] Análise IA ${manual ? 'manual' : 'agendada'} enviada para #${destination.name} (${total} msgs).`,
+      `[Corvo] Análise IA ${manual ? 'manual' : 'agendada'} enviada para #${destination.name} (${total} msgs → ${messageCount} mensagem(ns) Discord).`,
     );
     return {
       ok: true,
       total,
       channels: sections.length,
       destinationId: destination.id,
+      destinationName: destination.name,
+      messageCount,
       from: fromRaw,
       to: toRaw,
       model: analysis.model,

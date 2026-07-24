@@ -115,10 +115,10 @@ async function analyzeMessagesWithGemini({ prompt, messagesCorpus, meta = {} }) 
 
 function splitDiscordContent(text, maxLen = 1900) {
   const chunks = [];
-  let remaining = String(text || '');
+  let remaining = String(text || '').trim();
   while (remaining.length > maxLen) {
     let cut = remaining.lastIndexOf('\n', maxLen);
-    if (cut < maxLen * 0.5) cut = maxLen;
+    if (cut < Math.floor(maxLen * 0.5)) cut = maxLen;
     chunks.push(remaining.slice(0, cut).trim());
     remaining = remaining.slice(cut).trim();
   }
@@ -126,8 +126,42 @@ function splitDiscordContent(text, maxLen = 1900) {
   return chunks;
 }
 
+/** Envia o texto só como mensagens Discord (sem anexo), particionando se passar de 2000 chars. */
+async function sendAsDiscordMessages(channel, { header, content }) {
+  const headerText = String(header || '').trim();
+  const bodyChunks = splitDiscordContent(content, 1900);
+  if (bodyChunks.length === 0) {
+    if (headerText) await channel.send({ content: headerText.slice(0, 2000) });
+    return { messageCount: headerText ? 1 : 0 };
+  }
+
+  let messageCount = 0;
+  const firstCombined = headerText ? `${headerText}\n\n${bodyChunks[0]}` : bodyChunks[0];
+
+  if (firstCombined.length <= 2000) {
+    await channel.send({ content: firstCombined });
+    messageCount += 1;
+    for (const chunk of bodyChunks.slice(1)) {
+      await channel.send({ content: chunk.slice(0, 2000) });
+      messageCount += 1;
+    }
+  } else {
+    if (headerText) {
+      await channel.send({ content: headerText.slice(0, 2000) });
+      messageCount += 1;
+    }
+    for (const chunk of bodyChunks) {
+      await channel.send({ content: chunk.slice(0, 2000) });
+      messageCount += 1;
+    }
+  }
+
+  return { messageCount };
+}
+
 module.exports = {
   analyzeMessagesWithGemini,
   splitDiscordContent,
+  sendAsDiscordMessages,
   truncateMessagesCorpus,
 };
