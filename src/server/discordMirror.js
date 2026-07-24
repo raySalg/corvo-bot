@@ -12,6 +12,12 @@ const {
   runScheduledAiAnalysis,
   TIME_ZONE,
 } = require('../services/exportSchedule');
+const {
+  loadBoatosConfig,
+  saveBoatosConfig,
+  validateBoatosInput,
+  runBoatosAnalysis,
+} = require('../services/boatosSchedule');
 
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public', 'discord-mirror');
 
@@ -576,6 +582,43 @@ function createDiscordMirrorRouter(client) {
     } catch (error) {
       console.error('[Corvo] POST /api/export-schedule/run-ai:', error);
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao executar análise IA.' });
+    }
+  });
+
+  router.get('/api/boatos-schedule', async (_req, res) => {
+    try {
+      const config = await loadBoatosConfig();
+      res.json({
+        timezone: TIME_ZONE,
+        config,
+        storage: 'mongodb',
+      });
+    } catch (error) {
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao carregar agendamento de boatos.' });
+    }
+  });
+
+  router.put('/api/boatos-schedule', async (req, res) => {
+    try {
+      const validated = validateBoatosInput(req.body || {});
+      const config = await saveBoatosConfig(validated);
+      res.json({ timezone: TIME_ZONE, config, storage: 'mongodb' });
+    } catch (error) {
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao salvar agendamento de boatos.' });
+    }
+  });
+
+  router.post('/api/boatos-schedule/run', async (_req, res) => {
+    try {
+      if (!client?.isReady?.()) {
+        res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
+        return;
+      }
+      const result = await runBoatosAnalysis(client, { manual: true });
+      res.json(result);
+    } catch (error) {
+      console.error('[Corvo] POST /api/boatos-schedule/run:', error);
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao gerar boatos.' });
     }
   });
 

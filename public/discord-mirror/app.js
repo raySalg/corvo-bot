@@ -63,6 +63,24 @@ const els = {
   scheduleSubmit: document.getElementById('schedule-submit'),
   scheduleRunNow: document.getElementById('schedule-run-now'),
   scheduleRunAiNow: document.getElementById('schedule-run-ai-now'),
+  boatosBtn: document.getElementById('boatos-btn'),
+  boatosModal: document.getElementById('boatos-modal'),
+  boatosForm: document.getElementById('boatos-form'),
+  boatosEnabled: document.getElementById('boatos-enabled'),
+  boatosSources: document.getElementById('boatos-sources'),
+  boatosDestination: document.getElementById('boatos-destination'),
+  boatosDateFrom: document.getElementById('boatos-date-from'),
+  boatosDateTo: document.getElementById('boatos-date-to'),
+  boatosDateRange: document.getElementById('boatos-date-range'),
+  boatosDateMode: document.getElementById('boatos-date-mode'),
+  boatosDateTodayHint: document.getElementById('boatos-date-today-hint'),
+  boatosPrompt: document.getElementById('boatos-prompt'),
+  boatosHour: document.getElementById('boatos-hour'),
+  boatosMinute: document.getElementById('boatos-minute'),
+  boatosDays: document.getElementById('boatos-days'),
+  boatosStatus: document.getElementById('boatos-status'),
+  boatosSubmit: document.getElementById('boatos-submit'),
+  boatosRunNow: document.getElementById('boatos-run-now'),
 };
 
 let scrollLoadTimer = null;
@@ -450,13 +468,28 @@ function allFlatChannels(guild) {
   return flattenGuildChannels(guild).flatMap((group) => group.channels);
 }
 
-function renderSchedulePickers(selectedIds = [], destinationId = null, aiDestinationId = null) {
-  if (!state.guild) return;
+function syncGroupCheckbox(container, groupId) {
+  const groupChecks = [...container.querySelectorAll(`.channel-check[data-group-id="${groupId}"]`)];
+  const groupBox = container.querySelector(`.group-check[data-group-id="${groupId}"]`);
+  if (!groupBox || groupChecks.length === 0) return;
+  groupBox.checked = groupChecks.every((input) => input.checked);
+  groupBox.indeterminate = !groupBox.checked && groupChecks.some((input) => input.checked);
+}
 
+function getSelectedSourceIdsFrom(container) {
+  return [...container.querySelectorAll('.channel-check:checked')].map((input) => input.value);
+}
+
+function getSelectedSourceIds() {
+  return getSelectedSourceIdsFrom(els.scheduleSources);
+}
+
+function fillSourcePicker(container, selectedIds = []) {
+  if (!state.guild) return;
   const groups = flattenGuildChannels(state.guild);
   const selected = new Set(selectedIds);
 
-  els.scheduleSources.innerHTML = groups
+  container.innerHTML = groups
     .map((group) => {
       const channelIds = group.channels.map((channel) => channel.id);
       const allChecked = channelIds.length > 0 && channelIds.every((id) => selected.has(id));
@@ -478,29 +511,28 @@ function renderSchedulePickers(selectedIds = [], destinationId = null, aiDestina
         </div>`;
     })
     .join('') || '<p class="modal-note">Nenhum canal disponível.</p>';
-
-  const channelOptions = (selectedDestination) =>
-    allFlatChannels(state.guild)
-      .map(
-        (channel) =>
-          `<option value="${escapeHtml(channel.id)}" ${channel.id === selectedDestination ? 'selected' : ''}># ${escapeHtml(channel.name)}</option>`,
-      )
-      .join('');
-
-  els.scheduleDestination.innerHTML = `<option value="">Selecione…</option>${channelOptions(destinationId)}`;
-  els.scheduleAiDestination.innerHTML = `<option value="">Selecione…</option>${channelOptions(aiDestinationId || destinationId)}`;
 }
 
-function syncGroupCheckbox(groupId) {
-  const groupChecks = [...els.scheduleSources.querySelectorAll(`.channel-check[data-group-id="${groupId}"]`)];
-  const groupBox = els.scheduleSources.querySelector(`.group-check[data-group-id="${groupId}"]`);
-  if (!groupBox || groupChecks.length === 0) return;
-  groupBox.checked = groupChecks.every((input) => input.checked);
-  groupBox.indeterminate = !groupBox.checked && groupChecks.some((input) => input.checked);
+function channelSelectOptions(selectedDestination) {
+  return allFlatChannels(state.guild)
+    .map(
+      (channel) =>
+        `<option value="${escapeHtml(channel.id)}" ${channel.id === selectedDestination ? 'selected' : ''}># ${escapeHtml(channel.name)}</option>`,
+    )
+    .join('');
 }
 
-function getSelectedSourceIds() {
-  return [...els.scheduleSources.querySelectorAll('.channel-check:checked')].map((input) => input.value);
+function renderSchedulePickers(selectedIds = [], destinationId = null, aiDestinationId = null) {
+  if (!state.guild) return;
+  fillSourcePicker(els.scheduleSources, selectedIds);
+  els.scheduleDestination.innerHTML = `<option value="">Selecione…</option>${channelSelectOptions(destinationId)}`;
+  els.scheduleAiDestination.innerHTML = `<option value="">Selecione…</option>${channelSelectOptions(aiDestinationId || destinationId)}`;
+}
+
+function renderBoatosPickers(selectedIds = [], destinationId = null) {
+  if (!state.guild) return;
+  fillSourcePicker(els.boatosSources, selectedIds);
+  els.boatosDestination.innerHTML = `<option value="">Selecione…</option>${channelSelectOptions(destinationId)}`;
 }
 
 function getSelectedDaysFrom(container) {
@@ -682,6 +714,129 @@ async function runAiScheduleNow() {
   }
 }
 
+function getSelectedBoatosDateMode() {
+  const checked = els.boatosDateMode?.querySelector('input[name="boatos-date-mode"]:checked');
+  return checked?.value === 'today' ? 'today' : 'range';
+}
+
+function setSelectedBoatosDateMode(mode) {
+  const value = mode === 'today' ? 'today' : 'range';
+  for (const input of els.boatosDateMode.querySelectorAll('input[name="boatos-date-mode"]')) {
+    input.checked = input.value === value;
+  }
+  syncBoatosDateModeUi();
+}
+
+function syncBoatosDateModeUi() {
+  const todayMode = getSelectedBoatosDateMode() === 'today';
+  els.boatosDateRange.hidden = todayMode;
+  els.boatosDateTodayHint.hidden = !todayMode;
+  els.boatosDateFrom.required = !todayMode;
+  els.boatosDateTo.required = !todayMode;
+  els.boatosDateFrom.disabled = todayMode;
+  els.boatosDateTo.disabled = todayMode;
+}
+
+function formatBoatosStatus(config, timezone) {
+  if (!config) return `Fuso: ${timezone}`;
+  const period =
+    config.dateMode === 'today'
+      ? 'somente hoje'
+      : config.dateFrom && config.dateTo
+        ? `${config.dateFrom} → ${config.dateTo}`
+        : 'período não definido';
+  const time = `${String(config.hour).padStart(2, '0')}:${String(config.minute).padStart(2, '0')}`;
+  const last = config.lastRunAt ? new Date(config.lastRunAt).toLocaleString('pt-BR') : 'nunca';
+  const err = config.lastError ? ` · erro: ${config.lastError}` : '';
+  return (
+    `Fuso ${timezone} · ${config.enabled ? 'Ativo' : 'Desativado'} · Msgs ${period} · ` +
+    `Envio ${time} (${dayLabels(config.daysOfWeek) || '—'}) · Última: ${last}${err}`
+  );
+}
+
+function buildBoatosPayload() {
+  const dateMode = getSelectedBoatosDateMode();
+  return {
+    enabled: els.boatosEnabled.checked,
+    sourceChannelIds: getSelectedSourceIdsFrom(els.boatosSources),
+    destinationChannelId: els.boatosDestination.value || null,
+    dateMode,
+    dateFrom: dateMode === 'range' ? els.boatosDateFrom.value || null : null,
+    dateTo: dateMode === 'range' ? els.boatosDateTo.value || null : null,
+    prompt: els.boatosPrompt.value || '',
+    hour: Number(els.boatosHour.value),
+    minute: Number(els.boatosMinute.value),
+    daysOfWeek: getSelectedDaysFrom(els.boatosDays),
+  };
+}
+
+async function openBoatosModal() {
+  if (!state.guild) return;
+  try {
+    const data = await api('/api/boatos-schedule');
+    const config = data.config || {};
+    const today = new Date();
+    const monthAgo = new Date();
+    monthAgo.setDate(today.getDate() - 30);
+
+    els.boatosEnabled.checked = Boolean(config.enabled);
+    els.boatosHour.value = Number.isFinite(config.hour) ? config.hour : 0;
+    els.boatosMinute.value = Number.isFinite(config.minute) ? config.minute : 0;
+    els.boatosDateFrom.value = config.dateFrom || toInputDate(monthAgo);
+    els.boatosDateTo.value = config.dateTo || toInputDate(today);
+    setSelectedBoatosDateMode(config.dateMode || 'range');
+    setSelectedDaysOn(els.boatosDays, config.daysOfWeek || [0, 1, 2, 3, 4, 5, 6]);
+    els.boatosPrompt.value = config.prompt || '';
+    renderBoatosPickers(config.sourceChannelIds || [], config.destinationChannelId);
+    els.boatosStatus.textContent = formatBoatosStatus(config, data.timezone || 'America/Sao_Paulo');
+    els.boatosModal.classList.remove('hidden');
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+function closeBoatosModal() {
+  els.boatosModal.classList.add('hidden');
+  setButtonLoading(els.boatosSubmit, false);
+  setButtonLoading(els.boatosRunNow, false);
+}
+
+async function saveBoatos(event) {
+  event.preventDefault();
+  setButtonLoading(els.boatosSubmit, true);
+  try {
+    const data = await api('/api/boatos-schedule', {
+      method: 'PUT',
+      body: JSON.stringify(buildBoatosPayload()),
+    });
+    els.boatosStatus.textContent = formatBoatosStatus(data.config, data.timezone);
+    showToast('Agendamento de boatos salvo.');
+    closeBoatosModal();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    setButtonLoading(els.boatosSubmit, false);
+  }
+}
+
+async function runBoatosNow() {
+  setButtonLoading(els.boatosRunNow, true);
+  try {
+    await api('/api/boatos-schedule', {
+      method: 'PUT',
+      body: JSON.stringify(buildBoatosPayload()),
+    });
+    const result = await api('/api/boatos-schedule/run', { method: 'POST' });
+    showToast(`Boatos enviados (${result.total} mensagens · ${result.messageCount} msg Discord).`);
+    const data = await api('/api/boatos-schedule');
+    els.boatosStatus.textContent = formatBoatosStatus(data.config, data.timezone);
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    setButtonLoading(els.boatosRunNow, false);
+  }
+}
+
 async function selectChannel(channelId, channelName, canSend) {
   if (state.activeChannelId === channelId && state.messages.length) return;
 
@@ -856,13 +1011,36 @@ els.scheduleSources.addEventListener('change', (event) => {
   }
 
   const channelCheck = event.target.closest('.channel-check');
-  if (channelCheck) syncGroupCheckbox(channelCheck.dataset.groupId);
+  if (channelCheck) syncGroupCheckbox(els.scheduleSources, channelCheck.dataset.groupId);
+});
+
+els.boatosBtn.addEventListener('click', openBoatosModal);
+els.boatosForm.addEventListener('submit', saveBoatos);
+els.boatosRunNow.addEventListener('click', runBoatosNow);
+els.boatosDateMode.addEventListener('change', syncBoatosDateModeUi);
+els.boatosModal.addEventListener('click', (event) => {
+  if (event.target.closest('[data-close-boatos]')) closeBoatosModal();
+});
+els.boatosSources.addEventListener('change', (event) => {
+  const groupCheck = event.target.closest('.group-check');
+  if (groupCheck) {
+    const groupId = groupCheck.dataset.groupId;
+    for (const input of els.boatosSources.querySelectorAll(`.channel-check[data-group-id="${groupId}"]`)) {
+      input.checked = groupCheck.checked;
+    }
+    groupCheck.indeterminate = false;
+    return;
+  }
+
+  const channelCheck = event.target.closest('.channel-check');
+  if (channelCheck) syncGroupCheckbox(els.boatosSources, channelCheck.dataset.groupId);
 });
 
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
   if (!els.exportModal.classList.contains('hidden')) closeExportModal();
   if (!els.scheduleModal.classList.contains('hidden')) closeScheduleModal();
+  if (!els.boatosModal.classList.contains('hidden')) closeBoatosModal();
 });
 
 els.messages.addEventListener('scroll', () => {

@@ -96,6 +96,13 @@ input {
   flex-shrink: 0;
 }
 
+.server-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .server-title {
   display: flex;
   align-items: center;

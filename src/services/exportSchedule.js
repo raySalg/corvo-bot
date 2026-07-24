@@ -3,6 +3,7 @@ const { getDiscordGuildId } = require('../constants/discord');
 const { collectMessagesInRange, formatMultiChannelTxt } = require('../utils/messageExport');
 const { fetchAllForumThreads } = require('../utils/forumThreads');
 const { analyzeMessagesWithGemini, sendAsDiscordMessages } = require('./geminiService');
+const { acquireJobLock, releaseJobLock } = require('./jobLock');
 const ExportSchedule = require('../models/ExportSchedule');
 
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -35,7 +36,6 @@ const DEFAULT_SCHEDULE = {
 
 let cachedConfig = null;
 let tickTimer = null;
-let running = false;
 
 function parseDayBounds(fromRaw, toRaw) {
   const fromDate = new Date(`${fromRaw}T00:00:00`);
@@ -397,10 +397,6 @@ async function buildScheduledExport(client, config) {
 }
 
 async function runScheduledExport(client, { manual = false } = {}) {
-  if (running) {
-    throw Object.assign(new Error('Já existe uma exportação/análise em andamento.'), { status: 409 });
-  }
-
   const config = await loadScheduleConfig();
   if (!manual && !config.enabled) return null;
   if (!config.destinationChannelId || config.sourceChannelIds.length === 0) {
@@ -412,7 +408,7 @@ async function runScheduledExport(client, { manual = false } = {}) {
     });
   }
 
-  running = true;
+  acquireJobLock();
   try {
     const { guild, txt, sections, fromRaw, toRaw } = await buildScheduledExport(client, config);
     const destination = await client.channels.fetch(config.destinationChannelId).catch(() => null);
@@ -458,15 +454,11 @@ async function runScheduledExport(client, { manual = false } = {}) {
     });
     throw error;
   } finally {
-    running = false;
+    releaseJobLock();
   }
 }
 
 async function runScheduledAiAnalysis(client, { manual = false } = {}) {
-  if (running) {
-    throw Object.assign(new Error('Já existe uma exportação/análise em andamento.'), { status: 409 });
-  }
-
   const config = await loadScheduleConfig();
   if (!manual && !config.aiEnabled) return null;
 
@@ -485,7 +477,7 @@ async function runScheduledAiAnalysis(client, { manual = false } = {}) {
     });
   }
 
-  running = true;
+  acquireJobLock();
   try {
     const { guild, txt, sections, fromRaw, toRaw } = await buildScheduledExport(client, config);
     const destination = await client.channels.fetch(destinationId).catch(() => null);
@@ -553,7 +545,7 @@ async function runScheduledAiAnalysis(client, { manual = false } = {}) {
     });
     throw error;
   } finally {
-    running = false;
+    releaseJobLock();
   }
 }
 
@@ -612,4 +604,6 @@ module.exports = {
   runScheduledAiAnalysis,
   startExportScheduler,
   getSaoPauloParts,
+  buildScheduledExport,
+  normalizeDateMode,
 };

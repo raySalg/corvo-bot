@@ -20,9 +20,14 @@
             <img id="guild-icon" class="server-icon" alt="" hidden />
             <h1 id="guild-name">Conectando…</h1>
           </div>
-          <button type="button" id="schedule-btn" class="header-btn schedule-btn" title="Configurar exportação agendada">
-            Agendar
-          </button>
+          <div class="server-header-actions">
+            <button type="button" id="schedule-btn" class="header-btn schedule-btn" title="Configurar exportação agendada">
+              Agendar
+            </button>
+            <button type="button" id="boatos-btn" class="header-btn schedule-btn" title="Configurar geração de boatos">
+              Boatos
+            </button>
+          </div>
         </header>
         <nav id="channel-list" class="channel-list" aria-label="Canais"></nav>
         <footer class="user-panel">
@@ -260,6 +265,108 @@
             <button type="button" id="schedule-run-ai-now" class="btn-secondary">Analisar com IA agora</button>
             <button type="button" class="btn-secondary" data-close-schedule>Cancelar</button>
             <button type="submit" id="schedule-submit" class="btn-primary">
+              <span class="btn-label">Salvar</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="boatos-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="boatos-title">
+      <div class="modal-backdrop" data-close-boatos></div>
+      <div class="modal-card modal-card-wide">
+        <header class="modal-header">
+          <h3 id="boatos-title">Geração de boatos</h3>
+          <button type="button" class="modal-close" data-close-boatos aria-label="Fechar">×</button>
+        </header>
+        <p class="modal-subtitle">
+          Selecione canais/tópicos e o período; a IA analisa as mensagens com o seu prompt e publica os boatos no canal
+          de destino (fuso America/Sao_Paulo). Independente do agendamento TXT/resumo.
+        </p>
+        <form id="boatos-form" class="modal-form">
+          <label class="toggle-row">
+            <input id="boatos-enabled" type="checkbox" />
+            <span>Ativar envio automático de boatos</span>
+          </label>
+
+          <div class="field">
+            <span>Canais de origem</span>
+            <div id="boatos-sources" class="source-picker"></div>
+          </div>
+
+          <div class="field">
+            <span>Período das mensagens</span>
+            <div class="date-mode-picker" id="boatos-date-mode">
+              <label>
+                <input type="radio" name="boatos-date-mode" value="range" checked />
+                Intervalo (de → até)
+              </label>
+              <label>
+                <input type="radio" name="boatos-date-mode" value="today" />
+                Somente hoje
+              </label>
+            </div>
+            <p class="modal-note date-mode-hint" id="boatos-date-today-hint" hidden>
+              Usa o dia corrente no fuso America/Sao_Paulo (no envio automático, o “hoje” é o dia da execução).
+            </p>
+          </div>
+
+          <div id="boatos-date-range" class="schedule-time-row">
+            <label class="field">
+              <span>Mensagens de</span>
+              <input id="boatos-date-from" type="date" />
+            </label>
+            <label class="field">
+              <span>Mensagens até</span>
+              <input id="boatos-date-to" type="date" />
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Prompt (como a IA deve gerar os boatos)</span>
+            <textarea
+              id="boatos-prompt"
+              rows="5"
+              placeholder="Ex.: Com base nas conversas, invente 3 a 5 boatos divertidos e exagerados no tom do servidor, sem citar nomes reais se não estiverem nas mensagens."
+            ></textarea>
+          </label>
+
+          <label class="field">
+            <span>Canal de destino</span>
+            <select id="boatos-destination"></select>
+          </label>
+
+          <div class="schedule-time-row">
+            <label class="field">
+              <span>Hora do envio</span>
+              <input id="boatos-hour" type="number" min="0" max="23" value="0" required />
+            </label>
+            <label class="field">
+              <span>Minuto</span>
+              <input id="boatos-minute" type="number" min="0" max="59" value="0" required />
+            </label>
+          </div>
+
+          <div class="field">
+            <span>Dias da semana</span>
+            <div id="boatos-days" class="days-picker">
+              <label><input type="checkbox" value="0" checked /> Dom</label>
+              <label><input type="checkbox" value="1" checked /> Seg</label>
+              <label><input type="checkbox" value="2" checked /> Ter</label>
+              <label><input type="checkbox" value="3" checked /> Qua</label>
+              <label><input type="checkbox" value="4" checked /> Qui</label>
+              <label><input type="checkbox" value="5" checked /> Sex</label>
+              <label><input type="checkbox" value="6" checked /> Sáb</label>
+            </div>
+          </div>
+
+          <p id="boatos-status" class="modal-note"></p>
+
+          <div class="modal-actions modal-actions-wrap">
+            <button type="button" id="boatos-run-now" class="btn-secondary">Gerar boatos agora</button>
+            <button type="button" class="btn-secondary" data-close-boatos>Cancelar</button>
+            <button type="submit" id="boatos-submit" class="btn-primary">
               <span class="btn-label">Salvar</span>
               <span class="btn-spinner" aria-hidden="true"></span>
             </button>
