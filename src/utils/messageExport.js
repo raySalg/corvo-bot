@@ -41,16 +41,19 @@ function formatMessagesAsTxt({ guildName, channelName, from, to, messages, trunc
   return `${header}${body}\n`;
 }
 
-function formatMultiChannelTxt({ guildName, sections, generatedAt = new Date() }) {
+function formatMultiChannelTxt({ guildName, sections, from, to, generatedAt = new Date() }) {
   const total = sections.reduce((sum, section) => sum + section.messages.length, 0);
   const header = [
     `# Exportação agendada — Corvo`,
     `# Servidor: ${guildName}`,
-    `# Canais: ${sections.length}`,
+    `# Canais/tópicos: ${sections.length}`,
+    from && to ? `# Período: ${from} → ${to}` : null,
     `# Gerado em: ${generatedAt.toLocaleString('pt-BR')}`,
     `# Total geral: ${total} mensagem(ns)`,
     '',
-  ].join('\n');
+  ]
+    .filter((line) => line != null)
+    .join('\n');
 
   const body = sections
     .map((section) => {
@@ -59,11 +62,16 @@ function formatMultiChannelTxt({ guildName, sections, generatedAt = new Date() }
         `# Canal: #${section.channelName}`,
         `# Mensagens: ${section.messages.length}`,
         section.truncated ? `# Aviso: histórico truncado neste canal.` : null,
+        section.error ? `# Erro ao coletar: ${section.error}` : null,
         `${'='.repeat(60)}`,
         '',
       ]
         .filter((line) => line != null)
         .join('\n');
+
+      if (!section.messages.length) {
+        return `${blockHeader}(sem mensagens no período)\n`;
+      }
 
       return `${blockHeader}${section.messages.map(formatMessageLine).join('\n\n')}`;
     })

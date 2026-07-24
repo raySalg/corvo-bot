@@ -3,11 +3,13 @@ const express = require('express');
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { getDiscordGuildId } = require('../constants/discord');
 const { collectMessagesInRange, formatMessagesAsTxt } = require('../utils/messageExport');
+const { fetchAllForumThreads } = require('../utils/forumThreads');
 const {
   loadScheduleConfig,
   saveScheduleConfig,
   validateScheduleInput,
   runScheduledExport,
+  runScheduledAiAnalysis,
   TIME_ZONE,
 } = require('../services/exportSchedule');
 
@@ -136,30 +138,11 @@ function serializeChannelEntry(channel, me, { label } = {}) {
 }
 
 async function collectForumThreads(forum, me) {
-  const entries = [];
-
-  try {
-    const active = await forum.threads.fetchActive();
-    for (const thread of active.threads.values()) {
-      if (!botCanViewChannel(thread, me)) continue;
-      entries.push(serializeChannelEntry(thread, me));
-    }
-  } catch (error) {
-    console.warn(`[Corvo] Falha ao listar tópicos ativos de #${forum.name}:`, error.message ?? error);
-  }
-
-  try {
-    const archived = await forum.threads.fetchArchived({ limit: 30 });
-    for (const thread of archived.threads.values()) {
-      if (entries.some((entry) => entry.id === thread.id)) continue;
-      if (!botCanViewChannel(thread, me)) continue;
-      entries.push(serializeChannelEntry(thread, me));
-    }
-  } catch {
-    // Arquivados podem falhar sem permissão — ignora.
-  }
-
-  return entries.sort((a, b) => a.name.localeCompare(b.name));
+  const threads = await fetchAllForumThreads(forum);
+  return threads
+    .filter((thread) => botCanViewChannel(thread, me))
+    .map((thread) => serializeChannelEntry(thread, me))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 async function buildChannelTree(guild, me) {
@@ -190,6 +173,12 @@ async function buildChannelTree(guild, me) {
 
     if (channel.type === ChannelType.GuildForum || channel.type === ChannelType.GuildMedia) {
       const threads = await collectForumThreads(channel, me);
+      // Entrada do fórum = exporta todos os tópicos na hora do envio
+      byParent.get(parentId).push({
+        ...serializeChannelEntry(channel, me),
+        name: `${channel.name} (todos os tópicos)`,
+        canSend: false,
+      });
       if (threads.length > 0) {
         byParent.get(parentId).push(
           ...threads.map((thread) => ({
@@ -197,11 +186,6 @@ async function buildChannelTree(guild, me) {
             name: `${channel.name} › ${thread.name}`,
           })),
         );
-      } else {
-        byParent.get(parentId).push({
-          ...serializeChannelEntry(channel, me),
-          canSend: false,
-        });
       }
       continue;
     }
@@ -578,6 +562,20 @@ function createDiscordMirrorRouter(client) {
     } catch (error) {
       console.error('[Corvo] POST /api/export-schedule/run:', error);
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao executar exportação.' });
+    }
+  });
+
+  router.post('/api/export-schedule/run-ai', async (_req, res) => {
+    try {
+      if (!client?.isReady?.()) {
+        res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
+        return;
+      }
+      const result = await runScheduledAiAnalysis(client, { manual: true });
+      res.json(result);
+    } catch (error) {
+      console.error('[Corvo] POST /api/export-schedule/run-ai:', error);
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao executar análise IA.' });
     }
   });
 

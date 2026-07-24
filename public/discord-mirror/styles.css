@@ -919,6 +919,42 @@ input {
   width: min(100%, 560px);
 }
 
+.schedule-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-tertiary) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 18%, transparent);
+}
+
+.schedule-section-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.schedule-section textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 96px;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg-primary);
+  color: var(--text-strong);
+  font: inherit;
+  line-height: 1.4;
+}
+
+.modal-actions-wrap {
+  flex-wrap: wrap;
+}
+
 .toggle-row {
   display: flex;
   align-items: center;

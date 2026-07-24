@@ -45,12 +45,21 @@ const els = {
   scheduleEnabled: document.getElementById('schedule-enabled'),
   scheduleSources: document.getElementById('schedule-sources'),
   scheduleDestination: document.getElementById('schedule-destination'),
+  scheduleDateFrom: document.getElementById('schedule-date-from'),
+  scheduleDateTo: document.getElementById('schedule-date-to'),
   scheduleHour: document.getElementById('schedule-hour'),
   scheduleMinute: document.getElementById('schedule-minute'),
   scheduleDays: document.getElementById('schedule-days'),
+  scheduleAiEnabled: document.getElementById('schedule-ai-enabled'),
+  scheduleAiPrompt: document.getElementById('schedule-ai-prompt'),
+  scheduleAiDestination: document.getElementById('schedule-ai-destination'),
+  scheduleAiHour: document.getElementById('schedule-ai-hour'),
+  scheduleAiMinute: document.getElementById('schedule-ai-minute'),
+  scheduleAiDays: document.getElementById('schedule-ai-days'),
   scheduleStatus: document.getElementById('schedule-status'),
   scheduleSubmit: document.getElementById('schedule-submit'),
   scheduleRunNow: document.getElementById('schedule-run-now'),
+  scheduleRunAiNow: document.getElementById('schedule-run-ai-now'),
 };
 
 let scrollLoadTimer = null;
@@ -438,7 +447,7 @@ function allFlatChannels(guild) {
   return flattenGuildChannels(guild).flatMap((group) => group.channels);
 }
 
-function renderSchedulePickers(selectedIds = [], destinationId = null) {
+function renderSchedulePickers(selectedIds = [], destinationId = null, aiDestinationId = null) {
   if (!state.guild) return;
 
   const groups = flattenGuildChannels(state.guild);
@@ -467,13 +476,16 @@ function renderSchedulePickers(selectedIds = [], destinationId = null) {
     })
     .join('') || '<p class="modal-note">Nenhum canal disponível.</p>';
 
-  const options = allFlatChannels(state.guild)
-    .map(
-      (channel) =>
-        `<option value="${escapeHtml(channel.id)}" ${channel.id === destinationId ? 'selected' : ''}># ${escapeHtml(channel.name)}</option>`,
-    )
-    .join('');
-  els.scheduleDestination.innerHTML = `<option value="">Selecione…</option>${options}`;
+  const channelOptions = (selectedDestination) =>
+    allFlatChannels(state.guild)
+      .map(
+        (channel) =>
+          `<option value="${escapeHtml(channel.id)}" ${channel.id === selectedDestination ? 'selected' : ''}># ${escapeHtml(channel.name)}</option>`,
+      )
+      .join('');
+
+  els.scheduleDestination.innerHTML = `<option value="">Selecione…</option>${channelOptions(destinationId)}`;
+  els.scheduleAiDestination.innerHTML = `<option value="">Selecione…</option>${channelOptions(aiDestinationId || destinationId)}`;
 }
 
 function syncGroupCheckbox(groupId) {
@@ -488,26 +500,58 @@ function getSelectedSourceIds() {
   return [...els.scheduleSources.querySelectorAll('.channel-check:checked')].map((input) => input.value);
 }
 
-function getSelectedDays() {
-  return [...els.scheduleDays.querySelectorAll('input[type="checkbox"]:checked')].map((input) => Number(input.value));
+function getSelectedDaysFrom(container) {
+  return [...container.querySelectorAll('input[type="checkbox"]:checked')].map((input) => Number(input.value));
 }
 
-function setSelectedDays(days) {
+function setSelectedDaysOn(container, days) {
   const selected = new Set((days || []).map(Number));
-  for (const input of els.scheduleDays.querySelectorAll('input[type="checkbox"]')) {
+  for (const input of container.querySelectorAll('input[type="checkbox"]')) {
     input.checked = selected.has(Number(input.value));
   }
 }
 
-function formatScheduleStatus(config, timezone) {
-  if (!config) return `Fuso: ${timezone}`;
-  const days = (config.daysOfWeek || [])
+function dayLabels(days) {
+  return (days || [])
     .map((day) => ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][day] || day)
     .join(', ');
-  const time = `${String(config.hour).padStart(2, '0')}:${String(config.minute).padStart(2, '0')}`;
-  const last = config.lastRunAt ? new Date(config.lastRunAt).toLocaleString('pt-BR') : 'nunca';
-  const err = config.lastError ? ` · Último erro: ${config.lastError}` : '';
-  return `Fuso ${timezone} · ${config.enabled ? 'Ativo' : 'Desativado'} · ${time} · ${days || '—'} · Última execução: ${last}${err}`;
+}
+
+function formatScheduleStatus(config, timezone) {
+  if (!config) return `Fuso: ${timezone}`;
+  const period =
+    config.dateFrom && config.dateTo ? `${config.dateFrom} → ${config.dateTo}` : 'período não definido';
+  const txtTime = `${String(config.hour).padStart(2, '0')}:${String(config.minute).padStart(2, '0')}`;
+  const aiTime = `${String(config.aiHour ?? 0).padStart(2, '0')}:${String(config.aiMinute ?? 0).padStart(2, '0')}`;
+  const lastTxt = config.lastRunAt ? new Date(config.lastRunAt).toLocaleString('pt-BR') : 'nunca';
+  const lastAi = config.aiLastRunAt ? new Date(config.aiLastRunAt).toLocaleString('pt-BR') : 'nunca';
+  const errTxt = config.lastError ? ` · erro TXT: ${config.lastError}` : '';
+  const errAi = config.aiLastError ? ` · erro IA: ${config.aiLastError}` : '';
+  return (
+    `Fuso ${timezone} · Msgs ${period} · ` +
+    `TXT ${config.enabled ? 'ativo' : 'off'} ${txtTime} (${dayLabels(config.daysOfWeek) || '—'}) última ${lastTxt}` +
+    ` · IA ${config.aiEnabled ? 'ativa' : 'off'} ${aiTime} (${dayLabels(config.aiDaysOfWeek) || '—'}) última ${lastAi}` +
+    `${errTxt}${errAi}`
+  );
+}
+
+function buildSchedulePayload() {
+  return {
+    enabled: els.scheduleEnabled.checked,
+    sourceChannelIds: getSelectedSourceIds(),
+    destinationChannelId: els.scheduleDestination.value || null,
+    dateFrom: els.scheduleDateFrom.value || null,
+    dateTo: els.scheduleDateTo.value || null,
+    hour: Number(els.scheduleHour.value),
+    minute: Number(els.scheduleMinute.value),
+    daysOfWeek: getSelectedDaysFrom(els.scheduleDays),
+    aiEnabled: els.scheduleAiEnabled.checked,
+    aiPrompt: els.scheduleAiPrompt.value || '',
+    aiDestinationChannelId: els.scheduleAiDestination.value || null,
+    aiHour: Number(els.scheduleAiHour.value),
+    aiMinute: Number(els.scheduleAiMinute.value),
+    aiDaysOfWeek: getSelectedDaysFrom(els.scheduleAiDays),
+  };
 }
 
 async function openScheduleModal() {
@@ -515,11 +559,28 @@ async function openScheduleModal() {
   try {
     const data = await api('/api/export-schedule');
     const config = data.config || {};
+    const today = new Date();
+    const monthAgo = new Date();
+    monthAgo.setDate(today.getDate() - 30);
+
     els.scheduleEnabled.checked = Boolean(config.enabled);
     els.scheduleHour.value = Number.isFinite(config.hour) ? config.hour : 0;
     els.scheduleMinute.value = Number.isFinite(config.minute) ? config.minute : 0;
-    setSelectedDays(config.daysOfWeek || [0, 1, 2, 3, 4, 5, 6]);
-    renderSchedulePickers(config.sourceChannelIds || [], config.destinationChannelId);
+    els.scheduleDateFrom.value = config.dateFrom || toInputDate(monthAgo);
+    els.scheduleDateTo.value = config.dateTo || toInputDate(today);
+    setSelectedDaysOn(els.scheduleDays, config.daysOfWeek || [0, 1, 2, 3, 4, 5, 6]);
+
+    els.scheduleAiEnabled.checked = Boolean(config.aiEnabled);
+    els.scheduleAiPrompt.value = config.aiPrompt || '';
+    els.scheduleAiHour.value = Number.isFinite(config.aiHour) ? config.aiHour : 0;
+    els.scheduleAiMinute.value = Number.isFinite(config.aiMinute) ? config.aiMinute : 0;
+    setSelectedDaysOn(els.scheduleAiDays, config.aiDaysOfWeek || [0, 1, 2, 3, 4, 5, 6]);
+
+    renderSchedulePickers(
+      config.sourceChannelIds || [],
+      config.destinationChannelId,
+      config.aiDestinationChannelId,
+    );
     els.scheduleStatus.textContent = formatScheduleStatus(config, data.timezone || 'America/Sao_Paulo');
     els.scheduleModal.classList.remove('hidden');
   } catch (error) {
@@ -530,23 +591,17 @@ async function openScheduleModal() {
 function closeScheduleModal() {
   els.scheduleModal.classList.add('hidden');
   setButtonLoading(els.scheduleSubmit, false);
+  setButtonLoading(els.scheduleRunNow, false);
+  setButtonLoading(els.scheduleRunAiNow, false);
 }
 
 async function saveSchedule(event) {
   event.preventDefault();
   setButtonLoading(els.scheduleSubmit, true);
   try {
-    const payload = {
-      enabled: els.scheduleEnabled.checked,
-      sourceChannelIds: getSelectedSourceIds(),
-      destinationChannelId: els.scheduleDestination.value || null,
-      hour: Number(els.scheduleHour.value),
-      minute: Number(els.scheduleMinute.value),
-      daysOfWeek: getSelectedDays(),
-    };
     const data = await api('/api/export-schedule', {
       method: 'PUT',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(buildSchedulePayload()),
     });
     els.scheduleStatus.textContent = formatScheduleStatus(data.config, data.timezone);
     showToast('Agendamento salvo.');
@@ -561,27 +616,36 @@ async function saveSchedule(event) {
 async function runScheduleNow() {
   setButtonLoading(els.scheduleRunNow, true);
   try {
-    // Salva o estado atual do formulário antes de executar
-    const payload = {
-      enabled: els.scheduleEnabled.checked,
-      sourceChannelIds: getSelectedSourceIds(),
-      destinationChannelId: els.scheduleDestination.value || null,
-      hour: Number(els.scheduleHour.value),
-      minute: Number(els.scheduleMinute.value),
-      daysOfWeek: getSelectedDays(),
-    };
     await api('/api/export-schedule', {
       method: 'PUT',
-      body: JSON.stringify({ ...payload, enabled: payload.enabled }),
+      body: JSON.stringify(buildSchedulePayload()),
     });
     const result = await api('/api/export-schedule/run', { method: 'POST' });
-    showToast(`TXT enviado (${result.total} mensagens).`);
+    showToast(`TXT enviado (${result.total} mensagens · ${result.channels} canais).`);
     const data = await api('/api/export-schedule');
     els.scheduleStatus.textContent = formatScheduleStatus(data.config, data.timezone);
   } catch (error) {
     showToast(error.message, true);
   } finally {
     setButtonLoading(els.scheduleRunNow, false);
+  }
+}
+
+async function runAiScheduleNow() {
+  setButtonLoading(els.scheduleRunAiNow, true);
+  try {
+    await api('/api/export-schedule', {
+      method: 'PUT',
+      body: JSON.stringify(buildSchedulePayload()),
+    });
+    const result = await api('/api/export-schedule/run-ai', { method: 'POST' });
+    showToast(`Análise IA enviada (${result.total} mensagens · ${result.channels} canais).`);
+    const data = await api('/api/export-schedule');
+    els.scheduleStatus.textContent = formatScheduleStatus(data.config, data.timezone);
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    setButtonLoading(els.scheduleRunAiNow, false);
   }
 }
 
@@ -742,6 +806,7 @@ els.exportModal.addEventListener('click', (event) => {
 els.scheduleBtn.addEventListener('click', openScheduleModal);
 els.scheduleForm.addEventListener('submit', saveSchedule);
 els.scheduleRunNow.addEventListener('click', runScheduleNow);
+els.scheduleRunAiNow.addEventListener('click', runAiScheduleNow);
 els.scheduleModal.addEventListener('click', (event) => {
   if (event.target.closest('[data-close-schedule]')) closeScheduleModal();
 });

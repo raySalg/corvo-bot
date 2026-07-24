@@ -129,57 +129,118 @@
       <div class="modal-backdrop" data-close-schedule></div>
       <div class="modal-card modal-card-wide">
         <header class="modal-header">
-          <h3 id="schedule-title">Exportação agendada</h3>
+          <h3 id="schedule-title">Agendamento</h3>
           <button type="button" class="modal-close" data-close-schedule aria-label="Fechar">×</button>
         </header>
         <p class="modal-subtitle">
-          Selecione canais/tópicos (ou categorias inteiras), o destino do TXT e o horário (fuso America/Sao_Paulo).
-          A configuração é salva no MongoDB.
+          Selecione canais/tópicos, o período das mensagens e configure o envio do TXT e/ou a análise com IA (Groq).
+          Fuso America/Sao_Paulo. Em fóruns, use “(todos os tópicos)” para incluir o fórum inteiro.
         </p>
         <form id="schedule-form" class="modal-form">
-          <label class="toggle-row">
-            <input id="schedule-enabled" type="checkbox" />
-            <span>Ativar envio automático</span>
-          </label>
-
           <div class="field">
             <span>Canais de origem</span>
             <div id="schedule-sources" class="source-picker"></div>
           </div>
 
-          <label class="field">
-            <span>Canal de destino (recebe o TXT)</span>
-            <select id="schedule-destination" required></select>
-          </label>
-
           <div class="schedule-time-row">
             <label class="field">
-              <span>Hora</span>
-              <input id="schedule-hour" type="number" min="0" max="23" value="0" required />
+              <span>Mensagens de</span>
+              <input id="schedule-date-from" type="date" required />
             </label>
             <label class="field">
-              <span>Minuto</span>
-              <input id="schedule-minute" type="number" min="0" max="59" value="0" required />
+              <span>Mensagens até</span>
+              <input id="schedule-date-to" type="date" required />
             </label>
           </div>
 
-          <div class="field">
-            <span>Dias da semana</span>
-            <div id="schedule-days" class="days-picker">
-              <label><input type="checkbox" value="0" checked /> Dom</label>
-              <label><input type="checkbox" value="1" checked /> Seg</label>
-              <label><input type="checkbox" value="2" checked /> Ter</label>
-              <label><input type="checkbox" value="3" checked /> Qua</label>
-              <label><input type="checkbox" value="4" checked /> Qui</label>
-              <label><input type="checkbox" value="5" checked /> Sex</label>
-              <label><input type="checkbox" value="6" checked /> Sáb</label>
+          <section class="schedule-section">
+            <h4 class="schedule-section-title">Exportação TXT</h4>
+            <label class="toggle-row">
+              <input id="schedule-enabled" type="checkbox" />
+              <span>Ativar envio automático do TXT</span>
+            </label>
+
+            <label class="field">
+              <span>Canal de destino (recebe o TXT)</span>
+              <select id="schedule-destination"></select>
+            </label>
+
+            <div class="schedule-time-row">
+              <label class="field">
+                <span>Hora do envio</span>
+                <input id="schedule-hour" type="number" min="0" max="23" value="0" required />
+              </label>
+              <label class="field">
+                <span>Minuto</span>
+                <input id="schedule-minute" type="number" min="0" max="59" value="0" required />
+              </label>
             </div>
-          </div>
+
+            <div class="field">
+              <span>Dias da semana (TXT)</span>
+              <div id="schedule-days" class="days-picker">
+                <label><input type="checkbox" value="0" checked /> Dom</label>
+                <label><input type="checkbox" value="1" checked /> Seg</label>
+                <label><input type="checkbox" value="2" checked /> Ter</label>
+                <label><input type="checkbox" value="3" checked /> Qua</label>
+                <label><input type="checkbox" value="4" checked /> Qui</label>
+                <label><input type="checkbox" value="5" checked /> Sex</label>
+                <label><input type="checkbox" value="6" checked /> Sáb</label>
+              </div>
+            </div>
+          </section>
+
+          <section class="schedule-section">
+            <h4 class="schedule-section-title">Análise com IA (Groq)</h4>
+            <label class="toggle-row">
+              <input id="schedule-ai-enabled" type="checkbox" />
+              <span>Ativar envio automático da análise</span>
+            </label>
+
+            <label class="field">
+              <span>Prompt (o que a IA deve fazer com as mensagens)</span>
+              <textarea
+                id="schedule-ai-prompt"
+                rows="5"
+                placeholder="Ex.: Faça um resumo executivo, liste tópicos principais e decisões pendentes."
+              ></textarea>
+            </label>
+
+            <label class="field">
+              <span>Canal de destino da resposta da IA</span>
+              <select id="schedule-ai-destination"></select>
+            </label>
+
+            <div class="schedule-time-row">
+              <label class="field">
+                <span>Hora do envio (IA)</span>
+                <input id="schedule-ai-hour" type="number" min="0" max="23" value="0" required />
+              </label>
+              <label class="field">
+                <span>Minuto</span>
+                <input id="schedule-ai-minute" type="number" min="0" max="59" value="0" required />
+              </label>
+            </div>
+
+            <div class="field">
+              <span>Dias da semana (IA)</span>
+              <div id="schedule-ai-days" class="days-picker">
+                <label><input type="checkbox" value="0" checked /> Dom</label>
+                <label><input type="checkbox" value="1" checked /> Seg</label>
+                <label><input type="checkbox" value="2" checked /> Ter</label>
+                <label><input type="checkbox" value="3" checked /> Qua</label>
+                <label><input type="checkbox" value="4" checked /> Qui</label>
+                <label><input type="checkbox" value="5" checked /> Sex</label>
+                <label><input type="checkbox" value="6" checked /> Sáb</label>
+              </div>
+            </div>
+          </section>
 
           <p id="schedule-status" class="modal-note"></p>
 
-          <div class="modal-actions">
-            <button type="button" id="schedule-run-now" class="btn-secondary">Enviar agora</button>
+          <div class="modal-actions modal-actions-wrap">
+            <button type="button" id="schedule-run-now" class="btn-secondary">Enviar TXT agora</button>
+            <button type="button" id="schedule-run-ai-now" class="btn-secondary">Analisar com IA agora</button>
             <button type="button" class="btn-secondary" data-close-schedule>Cancelar</button>
             <button type="submit" id="schedule-submit" class="btn-primary">
               <span class="btn-label">Salvar</span>
