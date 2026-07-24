@@ -4,7 +4,7 @@ const { MessageFlags } = require('discord.js');
 const INTERACTION_FOLLOWUP_MS = 15 * 60 * 1000;
 
 /** Comandos que respondem com showModal — não podem usar deferReply antes do execute. */
-const MODAL_COMMANDS = new Set(['embed', 'decreto']);
+const MODAL_COMMANDS = new Set(['embed']);
 
 function ephemeralPayload(contentOrOptions) {
   if (typeof contentOrOptions === 'string') {
@@ -55,7 +55,7 @@ async function acknowledgeInteraction(interaction) {
     return;
   }
 
-  if (interaction.isModalSubmit() || interaction.isButton()) {
+  if (interaction.isModalSubmit()) {
     await deferCommandInteraction(interaction, { ephemeral: true });
   }
 }

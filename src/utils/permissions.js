@@ -25,14 +25,4 @@ async function requireAdmin(interaction) {
   return true;
 }
 
-function slugify(name) {
-  return name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-module.exports = { isAdmin, memberIsAdmin, requireAdmin, slugify, ACCESS_DENIED_MESSAGE };
+module.exports = { isAdmin, memberIsAdmin, requireAdmin, ACCESS_DENIED_MESSAGE };

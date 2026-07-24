@@ -1,21 +1,6 @@
 const { sendEphemeral, acknowledgeInteraction } = require('../utils/interactionReply');
-const { CASAS_REGION_PREFIX, handleCasasRegionButton } = require('../utils/casasView');
 
 async function routeInteraction(interaction, commands, { skipAcknowledge = false } = {}) {
-  if (interaction.isButton() && interaction.customId.startsWith(CASAS_REGION_PREFIX)) {
-    try {
-      if (!skipAcknowledge) await acknowledgeInteraction(interaction);
-      await handleCasasRegionButton(interaction);
-    } catch (error) {
-      console.error('Erro ao processar botão de região:', error);
-      await sendEphemeral(
-        interaction,
-        '### Erro\nNão foi possível carregar esta região. Tente novamente.',
-      );
-    }
-    return;
-  }
-
   if (interaction.isModalSubmit()) {
     const modalCommandName = interaction.customId.split(':')[0];
     const command = commands.get(modalCommandName);
@@ -46,18 +31,6 @@ async function routeInteraction(interaction, commands, { skipAcknowledge = false
         interaction,
         '### Erro\nNão foi possível processar o formulário. Tente novamente.',
       );
-    }
-    return;
-  }
-
-  if (interaction.isAutocomplete()) {
-    const command = commands.get(interaction.commandName);
-    if (!command?.autocomplete) return;
-
-    try {
-      await command.autocomplete(interaction);
-    } catch (error) {
-      console.error(`Erro no autocomplete de /${interaction.commandName}:`, error);
     }
     return;
   }

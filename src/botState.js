@@ -29,20 +29,10 @@ function setTokenRestResult(botUser) {
 }
 
 function getDiscordStatus() {
-  let mongodb = 'unknown';
-  try {
-    const mongoose = require('mongoose');
-    const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
-    mongodb = states[mongoose.connection.readyState] ?? 'unknown';
-  } catch {
-    mongodb = 'unavailable';
-  }
-
   const loginWaitSeconds = loginStartedAt ? Math.floor((Date.now() - loginStartedAt) / 1000) : 0;
 
   const base = {
     startupPhase,
-    mongodb,
     loginWaitSeconds,
     lastDiscordError,
     tokenRestOk,

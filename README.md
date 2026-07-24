@@ -1,23 +1,20 @@
-# Corvo de Três Olhos — Bot de Discord (Game of Thrones)
+# Corvo de Três Olhos — Bot de Discord
 
-Bot de Discord ambientado em **Westeros**. O **Corvo de Três Olhos** dá vida ao reino com sistema de **casas**, **lealdades** e **economia** persistidos em MongoDB.
+Bot enxuto para publicar mensagens customizadas em **embed**.
 
-## Comandos
+## Comando
 
 | Comando | Quem pode usar | Descrição |
 |---------|----------------|-----------|
-| `/escolher-casa` | Todos | Entrar em uma casa como Lorde (se houver vaga) ou Membro |
-| `/casas` | Todos | Listar casas, vagas e tesouros |
-| `/criar-casa` | Administrador | Criar nova casa com limite de membros e nível |
-| `/alterar-nivel-casa` | Administrador | Mudar entre Casa Dominante, Maior ou Menor |
-| `/economia-alterar` | Administrador | Adicionar ou remover moedas de ouro de uma casa |
-| `/falar` | Administrador | Faz o bot proclamar uma mensagem (teste) |
+| `/embed` | Administrador | Abre formulário para publicar embed (título, corpo, rodapé, emblema e imagem). Opção `cor` em RGB ou hex. |
 
-### Níveis de casa
+Exemplos:
 
-- **Casa Dominante** — Rei/Imperador de Westeros (apenas uma por servidor)
-- **Casa Maior** — Casas soberanas (Stark, Lannister, Targaryen...)
-- **Casa Menor** — Casas vassalas (Bolton, Greyjoy, Tully...)
+```
+/embed
+/embed cor:#FF0000
+/embed cor:255,0,0
+```
 
 ## Configuração local
 
@@ -25,7 +22,6 @@ Bot de Discord ambientado em **Westeros**. O **Corvo de Três Olhos** dá vida a
 
 - Node.js 18+
 - Conta no [Discord Developer Portal](https://discord.com/developers/applications)
-- Cluster no [MongoDB Atlas](https://www.mongodb.com/atlas) (plano gratuito)
 
 ### 2. Variáveis de ambiente
 
@@ -38,27 +34,18 @@ cp .env.example .env
 | Variável | Descrição |
 |----------|-----------|
 | `DISCORD_TOKEN` | Token do bot (Developer Portal → Bot → Reset Token) |
-| `DISCORD_CLIENT_ID` | Application ID (`1517984369120378980`) |
-| `DISCORD_GUILD_ID` | ID do servidor (`1523391016634417202`) — comandos aparecem na hora |
-| `MONGODB_URI` | Connection string do MongoDB Atlas |
+| `DISCORD_CLIENT_ID` | Application ID |
+| `DISCORD_GUILD_ID` | ID do servidor — comandos aparecem na hora |
+| `DISCORD_PUBLIC_KEY` | Public Key (Interactions Endpoint) |
 | `PORT` | Porta HTTP (Render define automaticamente; localmente usa `3000`) |
 
-> **Segurança:** nunca commite o arquivo `.env`. O OAuth Secret e a Public Key ficam no Developer Portal; este bot usa o token do bot via Gateway, não OAuth web.
+> **Segurança:** nunca commite o arquivo `.env`.
 
-### 3. MongoDB Atlas
-
-1. Crie uma conta em [mongodb.com/atlas](https://www.mongodb.com/atlas).
-2. Crie um cluster **M0 Free**.
-3. Em **Database Access**, crie um usuário com senha.
-4. Em **Network Access**, adicione `0.0.0.0/0` (necessário para o Render).
-5. Em **Connect → Drivers**, copie a connection string e substitua `<password>` pela senha do usuário.
-6. Cole em `MONGODB_URI` no `.env`.
-
-### 4. Instalar e rodar
+### 3. Instalar e rodar
 
 ```bash
 npm install
-npm run deploy-commands   # registra os slash commands
+npm run deploy-commands   # registra o slash command /embed
 npm start                 # inicia o bot
 ```
 
@@ -68,9 +55,7 @@ Para desenvolvimento com reload automático:
 npm run dev
 ```
 
-### 5. Convidar o bot
-
-Use este link (substitua permissões se necessário):
+### 4. Convidar o bot
 
 ```
 https://discord.com/api/oauth2/authorize?client_id=1517984369120378980&permissions=2147485696&scope=bot%20applications.commands
@@ -79,64 +64,26 @@ https://discord.com/api/oauth2/authorize?client_id=1517984369120378980&permissio
 ## Deploy no Render
 
 1. Faça push deste repositório para o GitHub.
-2. No [Render](https://render.com), crie um **Web Service** (não Background Worker).
+2. No [Render](https://render.com), crie um **Web Service**.
 3. Conecte o repositório GitHub.
-4. Configure as variáveis de ambiente:
-   - `DISCORD_TOKEN`
-   - `DISCORD_CLIENT_ID`
-   - `DISCORD_GUILD_ID`
-   - `MONGODB_URI`
+4. Configure as variáveis de ambiente (`DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`).
 5. **Build Command:** `npm install`
 6. **Start Command:** `npm run deploy-commands && npm start`
 
-O bot sobe um servidor HTTP mínimo (Express) que responde `Estou vivo!` em `/` e `/health`. Isso permite que o Render detecte a porta e evita que o serviço durma por inatividade quando combinado com um ping externo.
-
-O arquivo `render.yaml` já descreve essa configuração para deploy via Blueprint.
+O bot sobe um servidor HTTP mínimo (Express) em `/` e `/health`. O arquivo `render.yaml` descreve o deploy via Blueprint.
 
 ### Manter o bot acordado 24h (UptimeRobot)
 
-No plano gratuito, o Render pode suspender serviços web após ~15 minutos sem tráfego HTTP. Para evitar isso:
-
-1. Após o deploy, copie a URL do Render (ex: `https://sete-bot.onrender.com`).
-2. Crie conta gratuita em [uptimerobot.com](https://uptimerobot.com).
-3. **Add New Monitor**:
-   - **Monitor Type:** HTTP(s)
-   - **URL:** `https://seu-app.onrender.com/health`
-   - **Monitoring Interval:** 5 minutes
-4. Salve. O UptimeRobot fará ping a cada 5 minutos, mantendo o bot ativo.
-
-Teste manual: abra `https://seu-app.onrender.com/` no navegador — deve aparecer `Estou vivo!`.
+No plano gratuito, o Render pode suspender serviços web após ~15 minutos sem tráfego HTTP. Para evitar isso, monitore `/health` a cada 5 minutos.
 
 ## Estrutura do projeto
 
 ```
 src/
-├── commands/          # Slash commands
-│   ├── admin/         # Comandos restritos a administradores
-│   ├── casas.js
-│   ├── escolher-casa.js
-│   └── falar.js
-├── config/database.js # Conexão e seed das casas padrão
-├── constants/houses.js
-├── handlers/
-├── models/House.js    # Schema MongoDB
-├── server/keepAlive.js # Servidor HTTP para keep-alive no Render
+├── commands/embed.js      # Único slash command
+├── constants/             # Bot e Discord
+├── handlers/              # Loader e roteador de interações
+├── server/                # Keep-alive + endpoint /interactions
+├── utils/                 # Embed, permissões, publicação
 └── index.js
 ```
-
-## Casas iniciais
-
-Na primeira execução, o bot cria automaticamente (com tesouro zerado):
-
-Stark, Lannister, Targaryen, Bolton, Baratheon, Tyrell, Martell, Greyjoy, Tully e Arryn.
-
-## Próximos passos sugeridos
-
-- Comando `/economia-ver` por casa
-- Histórico de transações econômicas
-- Comando para abandonar casa
-- Roles do Discord vinculados à casa escolhida
-
----
-
-*O Inverno Está Chegando.*

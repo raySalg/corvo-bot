@@ -7,10 +7,10 @@ const {
   TextInputStyle,
   ActionRowBuilder,
 } = require('discord.js');
-const { requireAdmin, isAdmin, ACCESS_DENIED_MESSAGE } = require('../../utils/permissions');
-const { sendEphemeral } = require('../../utils/interactionReply');
-const { randomEmbedColor, parseEmbedColor } = require('../../utils/embed');
-const { publishEmbed } = require('../../utils/publishMessage');
+const { requireAdmin, isAdmin, ACCESS_DENIED_MESSAGE } = require('../utils/permissions');
+const { sendEphemeral } = require('../utils/interactionReply');
+const { randomEmbedColor, parseEmbedColor } = require('../utils/embed');
+const { publishEmbed } = require('../utils/publishMessage');
 
 const EMBED_MODAL_ID = 'embed:submit';
 const EMBED_MODAL_COLOR_PREFIX = `${EMBED_MODAL_ID}:c:`;

@@ -1,13 +1,19 @@
 require('dotenv').config();
 
 const { Client, Events, GatewayIntentBits } = require('discord.js');
-const { connectDatabase, seedDefaultHouses, seedHouseEconomy, seedWorldState } = require('./config/database');
 const { loadCommands } = require('./handlers/commandHandler');
 const { routeInteraction } = require('./handlers/interactionRouter');
 const { startKeepAliveServer } = require('./server/keepAlive');
 const { validateDiscordEnv } = require('./utils/discordEnv');
-const { BOT_NAME } = require('./constants/bot');
-const { attachDiscordClient, setStartupPhase, markDiscordLoginStart, setDiscordError, setTokenRestResult, getDiscordStatus } = require('./botState');
+const { BOT_NAME, CROW_EMOJI } = require('./constants/bot');
+const {
+  attachDiscordClient,
+  setStartupPhase,
+  markDiscordLoginStart,
+  setDiscordError,
+  setTokenRestResult,
+  getDiscordStatus,
+} = require('./botState');
 const { validateBotToken } = require('./utils/discordAuth');
 
 const GATEWAY_WARN_MS = 90_000;
@@ -23,38 +29,12 @@ if (errors.length > 0) {
 }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
 
 attachDiscordClient(client);
 
 const commands = loadCommands();
-
-let databaseBootstrapStarted = false;
-
-async function ensureDatabaseAndSeeds() {
-  if (databaseBootstrapStarted) return;
-  databaseBootstrapStarted = true;
-
-  setStartupPhase('mongodb');
-  console.log('[Corvo] Conectando ao MongoDB...');
-
-  try {
-    await connectDatabase();
-    await runStartupSeeds();
-    setStartupPhase('ready');
-  } catch (error) {
-    setStartupPhase('mongodb_failed');
-    console.error('[Corvo] MongoDB indisponível (bot continua no Discord):', error);
-  }
-}
-
-async function runStartupSeeds() {
-  await seedDefaultHouses();
-  await seedWorldState();
-  await seedHouseEconomy();
-  console.log('[Corvo] Dados iniciais verificados.');
-}
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`[Corvo] ${BOT_NAME} despertou como ${readyClient.user.tag}`);
@@ -70,8 +50,7 @@ client.once(Events.ClientReady, (readyClient) => {
     );
   }
 
-  setStartupPhase('discord_online');
-  void ensureDatabaseAndSeeds();
+  setStartupPhase('ready');
 });
 
 client.on(Events.Error, (error) => {
@@ -97,6 +76,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
     `[Corvo] Interação via Gateway: type=${interaction.type} command=${interaction.commandName ?? interaction.customId ?? '-'}`,
   );
   await routeInteraction(interaction, commands);
+});
+
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot || !client.user) return;
+  if (!message.mentions.has(client.user, { ignoreEveryone: true, ignoreRoles: true })) return;
+
+  try {
+    await message.react(CROW_EMOJI);
+  } catch (error) {
+    console.error('[Corvo] Falha ao reagir à menção:', error.message ?? error);
+  }
 });
 
 async function connectDiscordGateway() {

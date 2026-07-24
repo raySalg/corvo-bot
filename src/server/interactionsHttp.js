@@ -6,17 +6,13 @@ const {
 const {
   ChatInputCommandInteraction,
   ModalSubmitInteraction,
-  ButtonInteraction,
-  AutocompleteInteraction,
   MessageFlags,
 } = require('discord.js');
 const { MODAL_COMMANDS, wrapInteractionReply } = require('../utils/interactionReply');
 const { getDiscordPublicKey } = require('../constants/discord');
 const { routeInteraction } = require('../handlers/interactionRouter');
 const { memberIsAdmin, ACCESS_DENIED_MESSAGE } = require('../utils/permissions');
-const { CASAS_REGION_PREFIX } = require('../utils/casasView');
-const { buildEmbedModal, resolveEmbedColor } = require('../commands/admin/embed');
-const { buildDecreeModal } = require('../commands/decreto');
+const { buildEmbedModal, resolveEmbedColor } = require('../commands/embed');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral;
 
@@ -40,8 +36,6 @@ function createDeferredInteraction(client, body, { ephemeral = false } = {}) {
     interaction = new ChatInputCommandInteraction(client, body);
   } else if (body.type === InteractionType.MODAL_SUBMIT) {
     interaction = new ModalSubmitInteraction(client, body);
-  } else if (body.type === InteractionType.MESSAGE_COMPONENT) {
-    interaction = new ButtonInteraction(client, body);
   } else {
     return null;
   }
@@ -80,33 +74,6 @@ function createInteractionsHttpHandler({ client, commands }) {
       return;
     }
 
-    if (body.type === InteractionType.APPLICATION_COMMAND_AUTOCOMPLETE) {
-      const command = commands.get(body.data.name);
-      if (!command?.autocomplete) {
-        res.json({ type: InteractionResponseType.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT, data: { choices: [] } });
-        return;
-      }
-
-      try {
-        const interaction = new AutocompleteInteraction(client, body);
-        let choices = [];
-
-        interaction.respond = async (options) => {
-          choices = options;
-        };
-
-        await command.autocomplete(interaction);
-        res.json({
-          type: InteractionResponseType.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT,
-          data: { choices },
-        });
-      } catch (error) {
-        console.error(`[Corvo] Erro no autocomplete HTTP de /${body.data.name}:`, error);
-        res.json({ type: InteractionResponseType.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT, data: { choices: [] } });
-      }
-      return;
-    }
-
     if (body.type === InteractionType.APPLICATION_COMMAND) {
       const commandName = body.data.name;
 
@@ -119,27 +86,23 @@ function createInteractionsHttpHandler({ client, commands }) {
           return;
         }
 
-        let modal;
-        if (commandName === 'embed') {
-          const corInput = getCommandStringOption(body, 'cor');
-          if (corInput) {
-            try {
-              resolveEmbedColor(corInput);
-            } catch (error) {
-              res.json({
-                type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-                data: {
-                  content: `### Cor inválida\n${error.message}`,
-                  flags: EPHEMERAL_FLAG,
-                },
-              });
-              return;
-            }
+        const corInput = getCommandStringOption(body, 'cor');
+        if (corInput) {
+          try {
+            resolveEmbedColor(corInput);
+          } catch (error) {
+            res.json({
+              type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+              data: {
+                content: `### Cor inválida\n${error.message}`,
+                flags: EPHEMERAL_FLAG,
+              },
+            });
+            return;
           }
-          modal = buildEmbedModal(corInput);
-        } else {
-          modal = buildDecreeModal();
         }
+
+        const modal = buildEmbedModal(corInput);
         res.json({
           type: InteractionResponseType.MODAL,
           data: modal.toJSON(),
@@ -157,19 +120,6 @@ function createInteractionsHttpHandler({ client, commands }) {
     }
 
     if (body.type === InteractionType.MODAL_SUBMIT) {
-      res.json({
-        type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
-        data: { flags: EPHEMERAL_FLAG },
-      });
-      runInBackground(async () => {
-        const interaction = createDeferredInteraction(client, body, { ephemeral: true });
-        if (!interaction) return;
-        await routeInteraction(interaction, commands, { skipAcknowledge: true });
-      });
-      return;
-    }
-
-    if (body.type === InteractionType.MESSAGE_COMPONENT && body.data.custom_id?.startsWith(CASAS_REGION_PREFIX)) {
       res.json({
         type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
         data: { flags: EPHEMERAL_FLAG },

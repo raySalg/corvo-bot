@@ -1,7 +1,7 @@
 {
   "name": "sete-bot",
   "version": "1.0.0",
-  "description": "Corvo de Três Olhos — bot de Discord ambientado em Game of Thrones",
+  "description": "Corvo de Três Olhos — bot de Discord para publicar embeds",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -14,15 +14,13 @@
   },
   "keywords": [
     "discord",
-    "bot",
-    "game-of-thrones"
+    "bot"
   ],
   "license": "MIT",
   "dependencies": {
     "discord-interactions": "^4.4.0",
     "discord.js": "^14.19.3",
     "dotenv": "^16.5.0",
-    "express": "^4.21.2",
-    "mongoose": "^8.16.0"
+    "express": "^4.21.2"
   }
 }
