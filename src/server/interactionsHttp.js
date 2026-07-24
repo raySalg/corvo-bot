@@ -6,6 +6,7 @@ const {
 const {
   ChatInputCommandInteraction,
   ModalSubmitInteraction,
+  ButtonInteraction,
   MessageFlags,
 } = require('discord.js');
 const { MODAL_COMMANDS, wrapInteractionReply } = require('../utils/interactionReply');
@@ -36,6 +37,8 @@ function createDeferredInteraction(client, body, { ephemeral = false } = {}) {
     interaction = new ChatInputCommandInteraction(client, body);
   } else if (body.type === InteractionType.MODAL_SUBMIT) {
     interaction = new ModalSubmitInteraction(client, body);
+  } else if (body.type === InteractionType.MESSAGE_COMPONENT) {
+    interaction = new ButtonInteraction(client, body);
   } else {
     return null;
   }
@@ -110,9 +113,13 @@ function createInteractionsHttpHandler({ client, commands }) {
         return;
       }
 
-      res.json({ type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE });
+      const ephemeral = commandName === 'analisar-ia' || commandName === 'autorole';
+      res.json({
+        type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+        data: ephemeral ? { flags: EPHEMERAL_FLAG } : {},
+      });
       runInBackground(async () => {
-        const interaction = createDeferredInteraction(client, body);
+        const interaction = createDeferredInteraction(client, body, { ephemeral });
         if (!interaction) return;
         await routeInteraction(interaction, commands, { skipAcknowledge: true });
       });
@@ -120,6 +127,19 @@ function createInteractionsHttpHandler({ client, commands }) {
     }
 
     if (body.type === InteractionType.MODAL_SUBMIT) {
+      res.json({
+        type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+        data: { flags: EPHEMERAL_FLAG },
+      });
+      runInBackground(async () => {
+        const interaction = createDeferredInteraction(client, body, { ephemeral: true });
+        if (!interaction) return;
+        await routeInteraction(interaction, commands, { skipAcknowledge: true });
+      });
+      return;
+    }
+
+    if (body.type === InteractionType.MESSAGE_COMPONENT) {
       res.json({
         type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
         data: { flags: EPHEMERAL_FLAG },

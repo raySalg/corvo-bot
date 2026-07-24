@@ -1,6 +1,40 @@
 const { sendEphemeral, acknowledgeInteraction } = require('../utils/interactionReply');
 
 async function routeInteraction(interaction, commands, { skipAcknowledge = false } = {}) {
+  if (interaction.isButton()) {
+    const commandName = interaction.customId.split(':')[0];
+    const command = commands.get(commandName);
+
+    if (!command?.handleButton) {
+      console.error(`Botão sem handler registrado: ${interaction.customId}`);
+      await sendEphemeral(
+        interaction,
+        '### Erro\nEste botão não está mais disponível.',
+      );
+      return;
+    }
+
+    try {
+      if (!skipAcknowledge) await acknowledgeInteraction(interaction);
+      await command.handleButton(interaction);
+
+      if (!interaction.replied && !interaction.deferred) {
+        console.error(`Botão de /${commandName} concluiu sem resposta: ${interaction.customId}`);
+        await sendEphemeral(
+          interaction,
+          '### Erro\nNão foi possível processar este botão. Tente novamente.',
+        );
+      }
+    } catch (error) {
+      console.error(`Erro ao processar botão de /${commandName}:`, error);
+      await sendEphemeral(
+        interaction,
+        '### Erro\nNão foi possível processar este botão. Tente novamente.',
+      );
+    }
+    return;
+  }
+
   if (interaction.isModalSubmit()) {
     const modalCommandName = interaction.customId.split(':')[0];
     const command = commands.get(modalCommandName);

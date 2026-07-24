@@ -7,7 +7,7 @@ const INTERACTION_FOLLOWUP_MS = 15 * 60 * 1000;
 const MODAL_COMMANDS = new Set(['embed']);
 
 /** Comandos longos que devem ficar só para quem executou. */
-const EPHEMERAL_DEFER_COMMANDS = new Set(['analisar-ia']);
+const EPHEMERAL_DEFER_COMMANDS = new Set(['analisar-ia', 'autorole']);
 
 function ephemeralPayload(contentOrOptions) {
   if (typeof contentOrOptions === 'string') {
@@ -51,6 +51,11 @@ async function deferCommandInteraction(interaction, { ephemeral = false } = {}) 
 /** Confirma a interação imediatamente (dentro dos 3 s do Discord) para ganhar até 15 min de processamento. */
 async function acknowledgeInteraction(interaction) {
   if (interaction.deferred || interaction.replied) return;
+
+  if (interaction.isButton()) {
+    await deferCommandInteraction(interaction, { ephemeral: true });
+    return;
+  }
 
   if (interaction.isChatInputCommand()) {
     if (MODAL_COMMANDS.has(interaction.commandName)) return;
