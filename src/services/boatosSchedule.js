@@ -17,6 +17,7 @@ const DEFAULT_BOATOS = {
   dateFrom: null,
   dateTo: null,
   prompt: '',
+  mentionRoleId: null,
   hour: 0,
   minute: 0,
   daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
@@ -44,6 +45,7 @@ function toPublicConfig(doc) {
     dateFrom: doc.dateFrom ? String(doc.dateFrom) : null,
     dateTo: doc.dateTo ? String(doc.dateTo) : null,
     prompt: doc.prompt != null ? String(doc.prompt) : '',
+    mentionRoleId: doc.mentionRoleId ? String(doc.mentionRoleId) : null,
     hour: Number.isFinite(Number(doc.hour)) ? Number(doc.hour) : 0,
     minute: Number.isFinite(Number(doc.minute)) ? Number(doc.minute) : 0,
     daysOfWeek: Array.isArray(doc.daysOfWeek) ? doc.daysOfWeek.map(Number) : DEFAULT_BOATOS.daysOfWeek,
@@ -72,6 +74,14 @@ function normalizeConfig(next = {}, base = cachedConfig || DEFAULT_BOATOS) {
     dateFrom: (next.dateFrom ?? base.dateFrom) ? String(next.dateFrom ?? base.dateFrom) : null,
     dateTo: (next.dateTo ?? base.dateTo) ? String(next.dateTo ?? base.dateTo) : null,
     prompt: String(next.prompt ?? base.prompt ?? ''),
+    mentionRoleId:
+      next.mentionRoleId !== undefined
+        ? next.mentionRoleId
+          ? String(next.mentionRoleId)
+          : null
+        : base.mentionRoleId
+          ? String(base.mentionRoleId)
+          : null,
     lastRunKey: next.lastRunKey !== undefined ? next.lastRunKey : base.lastRunKey ?? null,
     lastRunAt: next.lastRunAt !== undefined ? next.lastRunAt : base.lastRunAt ?? null,
     lastError: next.lastError !== undefined ? next.lastError : base.lastError ?? null,
@@ -107,6 +117,7 @@ async function saveBoatosConfig(next) {
         dateFrom: config.dateFrom,
         dateTo: config.dateTo,
         prompt: config.prompt,
+        mentionRoleId: config.mentionRoleId,
         hour: config.hour,
         minute: config.minute,
         daysOfWeek: config.daysOfWeek,
@@ -140,6 +151,7 @@ function validateBoatosInput(body) {
   const dateFrom = body.dateFrom ? String(body.dateFrom).trim() : null;
   const dateTo = body.dateTo ? String(body.dateTo).trim() : null;
   const prompt = body.prompt != null ? String(body.prompt) : '';
+  const mentionRoleId = body.mentionRoleId ? String(body.mentionRoleId) : null;
   const hour = Number(body.hour);
   const minute = Number(body.minute);
   const daysOfWeek = normalizeDays(body.daysOfWeek, DEFAULT_BOATOS.daysOfWeek);
@@ -183,6 +195,7 @@ function validateBoatosInput(body) {
     dateFrom,
     dateTo,
     prompt,
+    mentionRoleId,
     hour,
     minute,
     daysOfWeek,
@@ -229,22 +242,32 @@ async function runBoatosAnalysis(client, { manual = false } = {}) {
       },
     });
 
-    const periodLabel =
-      normalizeDateMode(config.dateMode) === 'today'
-        ? `hoje (**${fromRaw}**)`
-        : `**${fromRaw} → ${toRaw}**`;
+    let messageCount = 0;
+    if (config.mentionRoleId) {
+      const roleId = String(config.mentionRoleId);
+      const isEveryone = roleId === guild.id;
+      if (isEveryone) {
+        await destination.send({
+          content: '@everyone',
+          allowedMentions: { parse: ['everyone'] },
+        });
+      } else {
+        const role = await guild.roles.fetch(roleId).catch(() => null);
+        if (!role) {
+          throw new Error('Cargo de menção inválido ou inexistente.');
+        }
+        await destination.send({
+          content: `<@&${role.id}>`,
+          allowedMentions: { roles: [role.id] },
+        });
+      }
+      messageCount += 1;
+    }
 
-    const header =
-      `### Boatos ${manual ? 'manual' : 'agendado'}\n` +
-      `Período ${periodLabel} · ${sections.length} canal(is)/tópico(s) · ${total} mensagem(ns)` +
-      (analysis.truncatedInput ? ' · material truncado' : '') +
-      `\nModelo: \`${analysis.requestedModel || analysis.model}\`` +
-      (analysis.fallbackUsed ? ' _(troca automática por limite)_' : '');
-
-    const { messageCount } = await sendAsDiscordMessages(destination, {
-      header,
+    const sent = await sendAsDiscordMessages(destination, {
       content: analysis.content,
     });
+    messageCount += sent.messageCount;
 
     const nowParts = getSaoPauloParts();
     await saveBoatosConfig({

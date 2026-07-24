@@ -325,8 +325,18 @@ function createDiscordMirrorRouter(client) {
 
       const guild = await resolveGuild(client);
       await guild.channels.fetch().catch(() => null);
+      await guild.roles.fetch().catch(() => null);
       const me = guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
       const tree = await buildChannelTree(guild, me);
+      const roles = [...guild.roles.cache.values()]
+        .filter((role) => role.id === guild.id || !role.managed)
+        .sort((a, b) => b.position - a.position)
+        .map((role) => ({
+          id: role.id,
+          name: role.id === guild.id ? '@everyone' : role.name,
+          color: role.color || null,
+          position: role.position,
+        }));
 
       res.json({
         id: guild.id,
@@ -334,6 +344,7 @@ function createDiscordMirrorRouter(client) {
         iconUrl: guild.iconURL({ size: 128, extension: 'png' }),
         categories: tree.categories,
         uncategorized: tree.uncategorized,
+        roles,
         bot: serializeUser(client.user),
         botIsAdmin: Boolean(me?.permissions?.has(PermissionFlagsBits.Administrator)),
       });

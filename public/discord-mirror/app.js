@@ -69,6 +69,7 @@ const els = {
   boatosEnabled: document.getElementById('boatos-enabled'),
   boatosSources: document.getElementById('boatos-sources'),
   boatosDestination: document.getElementById('boatos-destination'),
+  boatosMentionRole: document.getElementById('boatos-mention-role'),
   boatosDateFrom: document.getElementById('boatos-date-from'),
   boatosDateTo: document.getElementById('boatos-date-to'),
   boatosDateRange: document.getElementById('boatos-date-range'),
@@ -529,10 +530,20 @@ function renderSchedulePickers(selectedIds = [], destinationId = null, aiDestina
   els.scheduleAiDestination.innerHTML = `<option value="">Selecione…</option>${channelSelectOptions(aiDestinationId || destinationId)}`;
 }
 
-function renderBoatosPickers(selectedIds = [], destinationId = null) {
+function renderBoatosPickers(selectedIds = [], destinationId = null, mentionRoleId = null) {
   if (!state.guild) return;
   fillSourcePicker(els.boatosSources, selectedIds);
   els.boatosDestination.innerHTML = `<option value="">Selecione…</option>${channelSelectOptions(destinationId)}`;
+
+  const roles = state.guild.roles || [];
+  els.boatosMentionRole.innerHTML =
+    `<option value="">Nenhum</option>` +
+    roles
+      .map(
+        (role) =>
+          `<option value="${escapeHtml(role.id)}" ${role.id === mentionRoleId ? 'selected' : ''}>${escapeHtml(role.name)}</option>`,
+      )
+      .join('');
 }
 
 function getSelectedDaysFrom(container) {
@@ -748,9 +759,10 @@ function formatBoatosStatus(config, timezone) {
   const time = `${String(config.hour).padStart(2, '0')}:${String(config.minute).padStart(2, '0')}`;
   const last = config.lastRunAt ? new Date(config.lastRunAt).toLocaleString('pt-BR') : 'nunca';
   const err = config.lastError ? ` · erro: ${config.lastError}` : '';
+  const mention = config.mentionRoleId ? ` · menciona cargo` : '';
   return (
     `Fuso ${timezone} · ${config.enabled ? 'Ativo' : 'Desativado'} · Msgs ${period} · ` +
-    `Envio ${time} (${dayLabels(config.daysOfWeek) || '—'}) · Última: ${last}${err}`
+    `Envio ${time} (${dayLabels(config.daysOfWeek) || '—'})${mention} · Última: ${last}${err}`
   );
 }
 
@@ -760,6 +772,7 @@ function buildBoatosPayload() {
     enabled: els.boatosEnabled.checked,
     sourceChannelIds: getSelectedSourceIdsFrom(els.boatosSources),
     destinationChannelId: els.boatosDestination.value || null,
+    mentionRoleId: els.boatosMentionRole.value || null,
     dateMode,
     dateFrom: dateMode === 'range' ? els.boatosDateFrom.value || null : null,
     dateTo: dateMode === 'range' ? els.boatosDateTo.value || null : null,
@@ -787,7 +800,11 @@ async function openBoatosModal() {
     setSelectedBoatosDateMode(config.dateMode || 'range');
     setSelectedDaysOn(els.boatosDays, config.daysOfWeek || [0, 1, 2, 3, 4, 5, 6]);
     els.boatosPrompt.value = config.prompt || '';
-    renderBoatosPickers(config.sourceChannelIds || [], config.destinationChannelId);
+    renderBoatosPickers(
+      config.sourceChannelIds || [],
+      config.destinationChannelId,
+      config.mentionRoleId,
+    );
     els.boatosStatus.textContent = formatBoatosStatus(config, data.timezone || 'America/Sao_Paulo');
     els.boatosModal.classList.remove('hidden');
   } catch (error) {

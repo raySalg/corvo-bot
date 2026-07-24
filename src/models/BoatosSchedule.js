@@ -10,6 +10,7 @@ const boatosScheduleSchema = new mongoose.Schema(
     dateFrom: { type: String, default: null },
     dateTo: { type: String, default: null },
     prompt: { type: String, default: '' },
+    mentionRoleId: { type: String, default: null },
     hour: { type: Number, default: 0, min: 0, max: 23 },
     minute: { type: Number, default: 0, min: 0, max: 59 },
     daysOfWeek: { type: [Number], default: [0, 1, 2, 3, 4, 5, 6] },
