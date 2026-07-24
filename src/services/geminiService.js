@@ -1,4 +1,9 @@
-const { GROQ_CHAT_URL, getGroqApiKey, getGroqModel } = require('../constants/groq');
+const {
+  getGeminiApiKey,
+  getGeminiModel,
+  getGeminiProjectId,
+  getGeminiGenerateUrl,
+} = require('../constants/gemini');
 
 const MAX_CONTEXT_CHARS = 100_000;
 
@@ -12,10 +17,20 @@ function truncateMessagesCorpus(text) {
   };
 }
 
-async function analyzeMessagesWithGroq({ prompt, messagesCorpus, meta = {} }) {
-  const apiKey = getGroqApiKey();
+function extractGeminiText(data) {
+  const parts = data?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) return '';
+  return parts
+    .map((part) => (typeof part?.text === 'string' ? part.text : ''))
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+}
+
+async function analyzeMessagesWithGemini({ prompt, messagesCorpus, meta = {} }) {
+  const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    throw Object.assign(new Error('GROQ_API_KEY não configurada.'), { status: 500 });
+    throw Object.assign(new Error('GEMINI_API_KEY não configurada.'), { status: 500 });
   }
 
   const userPrompt = String(prompt || '').trim();
@@ -51,37 +66,49 @@ async function analyzeMessagesWithGroq({ prompt, messagesCorpus, meta = {} }) {
     .filter((line) => line != null)
     .join('\n');
 
-  const response = await fetch(GROQ_CHAT_URL, {
+  const model = getGeminiModel();
+  const response = await fetch(getGeminiGenerateUrl(model), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
     },
     body: JSON.stringify({
-      model: getGroqModel(),
-      temperature: 0.3,
-      max_tokens: 4096,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: userContent },
+      systemInstruction: {
+        parts: [{ text: system }],
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: userContent }],
+        },
       ],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 8192,
+      },
     }),
   });
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = data?.error?.message || data?.message || `HTTP ${response.status}`;
-    throw Object.assign(new Error(`Groq: ${detail}`), { status: 502 });
+    throw Object.assign(new Error(`Gemini: ${detail}`), { status: 502 });
   }
 
-  const content = data?.choices?.[0]?.message?.content?.trim();
+  const content = extractGeminiText(data);
   if (!content) {
-    throw Object.assign(new Error('A Groq não retornou conteúdo útil.'), { status: 502 });
+    const block = data?.candidates?.[0]?.finishReason || data?.promptFeedback?.blockReason;
+    throw Object.assign(
+      new Error(block ? `A Gemini não retornou conteúdo útil (${block}).` : 'A Gemini não retornou conteúdo útil.'),
+      { status: 502 },
+    );
   }
 
   return {
     content,
-    model: data.model || getGroqModel(),
+    model: data.modelVersion || model,
+    projectId: getGeminiProjectId(),
     truncatedInput: truncated,
   };
 }
@@ -100,7 +127,7 @@ function splitDiscordContent(text, maxLen = 1900) {
 }
 
 module.exports = {
-  analyzeMessagesWithGroq,
+  analyzeMessagesWithGemini,
   splitDiscordContent,
   truncateMessagesCorpus,
 };

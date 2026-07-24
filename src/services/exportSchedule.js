@@ -2,7 +2,7 @@ const { ChannelType, AttachmentBuilder } = require('discord.js');
 const { getDiscordGuildId } = require('../constants/discord');
 const { collectMessagesInRange, formatMultiChannelTxt } = require('../utils/messageExport');
 const { fetchAllForumThreads } = require('../utils/forumThreads');
-const { analyzeMessagesWithGroq, splitDiscordContent } = require('./groqService');
+const { analyzeMessagesWithGemini, splitDiscordContent } = require('./geminiService');
 const ExportSchedule = require('../models/ExportSchedule');
 
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -467,7 +467,7 @@ async function runScheduledAiAnalysis(client, { manual = false } = {}) {
     }
 
     const total = sections.reduce((sum, section) => sum + section.messages.length, 0);
-    const analysis = await analyzeMessagesWithGroq({
+    const analysis = await analyzeMessagesWithGemini({
       prompt: config.aiPrompt,
       messagesCorpus: txt,
       meta: {
@@ -571,7 +571,7 @@ async function startExportScheduler(client) {
   tickTimer = setInterval(() => {
     void tickSchedule(client);
   }, 20_000);
-  console.log('[Corvo] Agendador TXT + IA ativo (MongoDB + America/Sao_Paulo + Groq).');
+  console.log('[Corvo] Agendador TXT + IA ativo (MongoDB + America/Sao_Paulo + Gemini).');
 }
 
 module.exports = {
