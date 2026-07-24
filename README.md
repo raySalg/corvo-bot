@@ -1,6 +1,6 @@
 # Corvo de Três Olhos — Bot de Discord
 
-Bot enxuto para publicar mensagens customizadas em **embed**.
+Bot para publicar **embeds** e espelhar o servidor Discord numa UI web (estilo Discord) no Render.
 
 ## Comando
 
@@ -15,6 +15,23 @@ Exemplos:
 /embed cor:#FF0000
 /embed cor:255,0,0
 ```
+
+## Espelho Discord (web)
+
+A URL do serviço (`/`) abre uma tela com canais, histórico e membros. É possível **enviar mensagens** (elas saem como o bot Corvo).
+
+**Aviso de segurança:** não há login. Qualquer pessoa com o link do Render pode ler e enviar mensagens nos canais que o bot alcança.
+
+### Intents obrigatórios (Developer Portal → Bot)
+
+Ative:
+
+- **Message Content Intent** — ler conteúdo das mensagens
+- **Server Members Intent** — listar membros à direita
+
+Sem esses intents a UI sobe, mas texto e/ou membros podem ficar vazios.
+
+O bot também precisa de permissões nos canais: **Ver Canal**, **Ler Histórico de Mensagens** e **Enviar Mensagens**.
 
 ## Configuração local
 
@@ -33,20 +50,20 @@ cp .env.example .env
 
 | Variável | Descrição |
 |----------|-----------|
-| `DISCORD_TOKEN` | Token do bot (Developer Portal → Bot → Reset Token) |
+| `DISCORD_TOKEN` | Token do bot (opcional se já estiver embutido no código) |
 | `DISCORD_CLIENT_ID` | Application ID |
-| `DISCORD_GUILD_ID` | ID do servidor — comandos aparecem na hora |
+| `DISCORD_GUILD_ID` | ID do servidor espelhado / comandos slash |
 | `DISCORD_PUBLIC_KEY` | Public Key (Interactions Endpoint) |
 | `PORT` | Porta HTTP (Render define automaticamente; localmente usa `3000`) |
 
-> **Segurança:** nunca commite o arquivo `.env`.
+> **Segurança:** nunca commite o arquivo `.env`. O espelho web é público — trate a URL como secreta ou adicione autenticação depois.
 
 ### 3. Instalar e rodar
 
 ```bash
 npm install
 npm run deploy-commands   # registra o slash command /embed
-npm start                 # inicia o bot
+npm start                 # inicia o bot + UI em http://localhost:3000
 ```
 
 Para desenvolvimento com reload automático:
@@ -66,24 +83,30 @@ https://discord.com/api/oauth2/authorize?client_id=1517984369120378980&permissio
 1. Faça push deste repositório para o GitHub.
 2. No [Render](https://render.com), crie um **Web Service**.
 3. Conecte o repositório GitHub.
-4. Configure as variáveis de ambiente (`DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`).
+4. Configure as variáveis se necessário.
 5. **Build Command:** `npm install`
 6. **Start Command:** `npm run deploy-commands && npm start`
 
-O bot sobe um servidor HTTP mínimo (Express) em `/` e `/health`. O arquivo `render.yaml` descreve o deploy via Blueprint.
+Endpoints:
+
+- `/` — espelho Discord (UI)
+- `/health` — health check
+- `/interactions` — Interactions Endpoint do Discord
+- `/api/guild`, `/api/channels/:id/messages`, `/api/members` — API do espelho
 
 ### Manter o bot acordado 24h (UptimeRobot)
 
-No plano gratuito, o Render pode suspender serviços web após ~15 minutos sem tráfego HTTP. Para evitar isso, monitore `/health` a cada 5 minutos.
+Monitore `/health` a cada 5 minutos no plano gratuito do Render.
 
 ## Estrutura do projeto
 
 ```
+public/discord-mirror/  # UI estilo Discord
 src/
-├── commands/embed.js      # Único slash command
-├── constants/             # Bot e Discord
-├── handlers/              # Loader e roteador de interações
-├── server/                # Keep-alive + endpoint /interactions
-├── utils/                 # Embed, permissões, publicação
+├── commands/embed.js
+├── constants/
+├── handlers/
+├── server/             # keep-alive, interactions, espelho
+├── utils/
 └── index.js
 ```

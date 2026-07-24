@@ -29,7 +29,12 @@ if (errors.length > 0) {
 }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
+  ],
 });
 
 attachDiscordClient(client);
@@ -100,6 +105,11 @@ async function connectDiscordGateway() {
     setStartupPhase('discord_login_failed');
     setDiscordError(error);
     console.error('[Corvo] Falha no Gateway:', error);
+    if (String(error?.message ?? error).includes('disallowed intents')) {
+      console.error(
+        '[Corvo] Ative Message Content Intent e Server Members Intent em Developer Portal → Bot → Privileged Gateway Intents.',
+      );
+    }
   }
 }
 

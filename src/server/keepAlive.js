@@ -3,6 +3,7 @@ const { BOT_NAME } = require('../constants/bot');
 const { getDiscordStatus } = require('../botState');
 const { getDiscordPublicKey } = require('../constants/discord');
 const { createInteractionsHttpHandler } = require('./interactionsHttp');
+const { mountDiscordMirror } = require('./discordMirror');
 
 function startKeepAliveServer({ client, commands } = {}) {
   const app = express();
@@ -23,11 +24,6 @@ function startKeepAliveServer({ client, commands } = {}) {
     });
   }
 
-  app.get('/', (_req, res) => {
-    const { discordReady } = getDiscordStatus();
-    res.status(200).send(discordReady ? 'Estou vivo!' : 'HTTP ok — conectando ao Discord...');
-  });
-
   app.get('/health', (_req, res) => {
     const discordStatus = getDiscordStatus();
     const hasPublicKey = Boolean(getDiscordPublicKey());
@@ -39,7 +35,6 @@ function startKeepAliveServer({ client, commands } = {}) {
       } else if (!discordStatus.tokenRestOk && discordStatus.startupPhase === 'discord_login_failed') {
         hint =
           'Token embutido rejeitado pelo Discord. Developer Portal → Bot → Reset Token → atualize src/constants/discord.js.';
-      } else if (!discordStatus.tokenRestOk && discordStatus.loginWaitSeconds > 20) {
       } else if (discordStatus.tokenRestOk && discordStatus.loginWaitSeconds > 45) {
         hint =
           'Token REST ok, mas Gateway WebSocket travou. Comandos devem funcionar via /interactions; para status online, tente Manual Deploy no Render.';
@@ -61,8 +56,18 @@ function startKeepAliveServer({ client, commands } = {}) {
     });
   });
 
+  if (client) {
+    mountDiscordMirror(app, client);
+  } else {
+    app.get('/', (_req, res) => {
+      const { discordReady } = getDiscordStatus();
+      res.status(200).send(discordReady ? 'Estou vivo!' : 'HTTP ok — conectando ao Discord...');
+    });
+  }
+
   app.listen(port, '0.0.0.0', () => {
     console.log(`[Corvo] Servidor HTTP ativo na porta ${port}.`);
+    console.log('[Corvo] Espelho Discord: GET /');
     if (getDiscordPublicKey()) {
       console.log('[Corvo] Endpoint de interações: POST /interactions');
     }

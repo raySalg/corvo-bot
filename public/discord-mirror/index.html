@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Corvo — Espelho Discord</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app">
+      <aside class="sidebar channels-sidebar">
+        <header class="server-header">
+          <div class="server-title">
+            <img id="guild-icon" class="server-icon" alt="" hidden />
+            <h1 id="guild-name">Conectando…</h1>
+          </div>
+        </header>
+        <nav id="channel-list" class="channel-list" aria-label="Canais"></nav>
+        <footer class="user-panel">
+          <img id="bot-avatar" class="avatar" alt="" />
+          <div class="user-meta">
+            <strong id="bot-name">corvo</strong>
+            <span id="bot-status">online</span>
+          </div>
+        </footer>
+      </aside>
+
+      <main class="chat">
+        <header class="chat-header">
+          <div class="channel-heading">
+            <span class="hash" aria-hidden="true">#</span>
+            <h2 id="active-channel-name">selecione um canal</h2>
+          </div>
+          <p id="connection-hint" class="connection-hint"></p>
+        </header>
+
+        <div id="messages" class="messages" aria-live="polite">
+          <div id="load-older" class="load-older hidden">
+            <button type="button" id="load-older-btn">Carregar mensagens anteriores</button>
+          </div>
+          <div id="message-list" class="message-list"></div>
+          <div id="messages-empty" class="empty-state">Escolha um canal à esquerda para ver as mensagens.</div>
+        </div>
+
+        <form id="composer" class="composer" autocomplete="off">
+          <div class="composer-box">
+            <input
+              id="message-input"
+              type="text"
+              maxlength="2000"
+              placeholder="Selecione um canal para conversar"
+              disabled
+            />
+            <button type="submit" id="send-btn" disabled>Enviar</button>
+          </div>
+          <p class="composer-note">Mensagens são enviadas como o bot Corvo.</p>
+        </form>
+      </main>
+
+      <aside class="sidebar members-sidebar">
+        <header class="members-header">Membros</header>
+        <div id="member-list" class="member-list"></div>
+      </aside>
+    </div>
+
+    <div id="toast" class="toast hidden" role="status"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>
