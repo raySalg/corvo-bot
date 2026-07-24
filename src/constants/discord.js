@@ -1,4 +1,4 @@
-/** Credenciais do app Corvo (Developer Portal). Embutidas — env do Render não sobrescreve. */
+/** Credenciais do app Corvo (Developer Portal). Env do Render/local sobrescreve token, client e guild. */
 const DISCORD_PUBLIC_KEY =
   'd55e326d0827adeb24bb17e87d63886d028a557991757e07b764a94b4e9a7c94';
 
@@ -7,22 +7,22 @@ const DISCORD_TOKEN =
 
 const DISCORD_CLIENT_ID = '1517984369120378980';
 
-const DISCORD_GUILD_ID = '1523391016634417202';
+const DISCORD_GUILD_ID = '1466080517421268992';
 
 function getDiscordPublicKey() {
   return DISCORD_PUBLIC_KEY;
 }
 
 function getDiscordToken() {
-  return DISCORD_TOKEN;
+  return process.env.DISCORD_TOKEN?.trim() || DISCORD_TOKEN;
 }
 
 function getDiscordClientId() {
-  return DISCORD_CLIENT_ID;
+  return process.env.DISCORD_CLIENT_ID?.trim() || DISCORD_CLIENT_ID;
 }
 
 function getDiscordGuildId() {
-  return DISCORD_GUILD_ID;
+  return process.env.DISCORD_GUILD_ID?.trim() || DISCORD_GUILD_ID;
 }
 
 module.exports = {

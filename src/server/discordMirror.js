@@ -72,70 +72,151 @@ function serializeMessage(message) {
 }
 
 function botCanViewChannel(channel, me) {
-  if (!channel?.isTextBased?.() || channel.isDMBased?.()) return false;
-  if (!me) return true;
+  if (!channel || channel.isDMBased?.()) return false;
+
+  const readableType =
+    channel.type === ChannelType.GuildText ||
+    channel.type === ChannelType.GuildAnnouncement ||
+    channel.type === ChannelType.GuildForum ||
+    channel.type === ChannelType.GuildMedia ||
+    channel.type === ChannelType.PublicThread ||
+    channel.type === ChannelType.PrivateThread ||
+    channel.isTextBased?.();
+
+  if (!readableType) return false;
+
+  if (me?.permissions?.has(PermissionFlagsBits.Administrator)) return true;
+  if (channel.viewable === true) return true;
+
   const perms = channel.permissionsFor(me);
   if (!perms) return false;
-  return (
-    perms.has(PermissionFlagsBits.ViewChannel) &&
-    perms.has(PermissionFlagsBits.ReadMessageHistory)
-  );
+  return perms.has(PermissionFlagsBits.ViewChannel);
+}
+
+function botCanReadHistory(channel, me) {
+  if (!botCanViewChannel(channel, me)) return false;
+  if (me?.permissions?.has(PermissionFlagsBits.Administrator)) return true;
+  const perms = channel.permissionsFor(me);
+  if (!perms) return true;
+  return perms.has(PermissionFlagsBits.ReadMessageHistory);
 }
 
 function botCanSendInChannel(channel, me) {
   if (!botCanViewChannel(channel, me)) return false;
+  if (me?.permissions?.has(PermissionFlagsBits.Administrator)) return true;
   if (!me) return false;
+  if (channel.isThread?.() && channel.locked) return false;
   const perms = channel.permissionsFor(me);
-  return Boolean(perms?.has(PermissionFlagsBits.SendMessages));
+  if (!perms) return false;
+  if (channel.isThread?.()) {
+    return perms.has(PermissionFlagsBits.SendMessagesInThreads);
+  }
+  if (channel.type === ChannelType.GuildForum || channel.type === ChannelType.GuildMedia) {
+    return false;
+  }
+  return perms.has(PermissionFlagsBits.SendMessages);
 }
 
-async function resolveGuild(client) {
-  const guildId = getDiscordGuildId();
-  if (!guildId) {
-    throw Object.assign(new Error('DISCORD_GUILD_ID não configurado.'), { status: 500 });
-  }
+function serializeChannelEntry(channel, me, { label } = {}) {
+  return {
+    id: channel.id,
+    name: label || channel.name,
+    type: channel.type,
+    canSend: botCanSendInChannel(channel, me),
+    canRead: botCanReadHistory(channel, me),
+  };
+}
 
-  let guild = client.guilds.cache.get(guildId);
-  if (!guild) {
-    try {
-      guild = await client.guilds.fetch(guildId);
-    } catch {
-      throw Object.assign(new Error('Servidor não encontrado ou bot não está nele.'), { status: 404 });
+async function collectForumThreads(forum, me) {
+  const entries = [];
+
+  try {
+    const active = await forum.threads.fetchActive();
+    for (const thread of active.threads.values()) {
+      if (!botCanViewChannel(thread, me)) continue;
+      entries.push(serializeChannelEntry(thread, me));
     }
+  } catch (error) {
+    console.warn(`[Corvo] Falha ao listar tópicos ativos de #${forum.name}:`, error.message ?? error);
   }
-  return guild;
+
+  try {
+    const archived = await forum.threads.fetchArchived({ limit: 30 });
+    for (const thread of archived.threads.values()) {
+      if (entries.some((entry) => entry.id === thread.id)) continue;
+      if (!botCanViewChannel(thread, me)) continue;
+      entries.push(serializeChannelEntry(thread, me));
+    }
+  } catch {
+    // Arquivados podem falhar sem permissão — ignora.
+  }
+
+  return entries.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function buildChannelTree(guild, me) {
+async function buildChannelTree(guild, me) {
   const categories = [];
   const uncategorized = [];
 
-  const textChannels = [...guild.channels.cache.values()]
+  const allChannels = [...guild.channels.cache.values()];
+  const categoryChannels = allChannels
+    .filter((channel) => channel.type === ChannelType.GuildCategory)
+    .sort((a, b) => a.rawPosition - b.rawPosition || a.name.localeCompare(b.name));
+
+  const baseChannels = allChannels
     .filter(
       (channel) =>
         (channel.type === ChannelType.GuildText ||
           channel.type === ChannelType.GuildAnnouncement ||
-          channel.type === ChannelType.PublicThread ||
-          channel.type === ChannelType.PrivateThread) &&
+          channel.type === ChannelType.GuildForum ||
+          channel.type === ChannelType.GuildMedia) &&
         botCanViewChannel(channel, me),
     )
     .sort((a, b) => a.rawPosition - b.rawPosition || a.name.localeCompare(b.name));
 
-  const categoryChannels = [...guild.channels.cache.values()]
-    .filter((channel) => channel.type === ChannelType.GuildCategory)
-    .sort((a, b) => a.rawPosition - b.rawPosition || a.name.localeCompare(b.name));
-
   const byParent = new Map();
-  for (const channel of textChannels) {
-    if (channel.isThread?.()) continue;
+
+  for (const channel of baseChannels) {
     const parentId = channel.parentId ?? null;
     if (!byParent.has(parentId)) byParent.set(parentId, []);
-    byParent.get(parentId).push({
-      id: channel.id,
-      name: channel.name,
-      type: channel.type,
-      canSend: botCanSendInChannel(channel, me),
-    });
+
+    if (channel.type === ChannelType.GuildForum || channel.type === ChannelType.GuildMedia) {
+      const threads = await collectForumThreads(channel, me);
+      if (threads.length > 0) {
+        byParent.get(parentId).push(
+          ...threads.map((thread) => ({
+            ...thread,
+            name: `${channel.name} › ${thread.name}`,
+          })),
+        );
+      } else {
+        byParent.get(parentId).push({
+          ...serializeChannelEntry(channel, me),
+          canSend: false,
+        });
+      }
+      continue;
+    }
+
+    byParent.get(parentId).push(serializeChannelEntry(channel, me));
+  }
+
+  for (const channel of allChannels) {
+    if (!channel.isThread?.()) continue;
+    if (channel.parent?.type === ChannelType.GuildForum || channel.parent?.type === ChannelType.GuildMedia) {
+      continue;
+    }
+    if (!botCanViewChannel(channel, me)) continue;
+
+    const parentId = channel.parent?.parentId ?? null;
+    if (!byParent.has(parentId)) byParent.set(parentId, []);
+    if (byParent.get(parentId).some((entry) => entry.id === channel.id)) continue;
+
+    byParent.get(parentId).push(
+      serializeChannelEntry(channel, me, {
+        label: channel.parent ? `${channel.parent.name} › ${channel.name}` : channel.name,
+      }),
+    );
   }
 
   for (const category of categoryChannels) {
@@ -162,6 +243,23 @@ function buildChannelTree(guild, me) {
   }
 
   return { categories, uncategorized };
+}
+
+async function resolveGuild(client) {
+  const guildId = getDiscordGuildId();
+  if (!guildId) {
+    throw Object.assign(new Error('DISCORD_GUILD_ID não configurado.'), { status: 500 });
+  }
+
+  let guild = client.guilds.cache.get(guildId);
+  if (!guild) {
+    try {
+      guild = await client.guilds.fetch(guildId);
+    } catch {
+      throw Object.assign(new Error('Servidor não encontrado ou bot não está nele.'), { status: 404 });
+    }
+  }
+  return guild;
 }
 
 async function buildMemberGroups(guild) {
@@ -207,7 +305,7 @@ async function buildMemberGroups(guild) {
     });
   }
 
-  const groups = [...groupsMap.values()]
+  return [...groupsMap.values()]
     .map((group) => ({
       ...group,
       members: group.members.sort((a, b) => a.displayName.localeCompare(b.displayName)),
@@ -215,8 +313,6 @@ async function buildMemberGroups(guild) {
     }))
     .filter((group) => group.count > 0)
     .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name));
-
-  return groups;
 }
 
 function createDiscordMirrorRouter(client) {
@@ -232,7 +328,7 @@ function createDiscordMirrorRouter(client) {
       const guild = await resolveGuild(client);
       await guild.channels.fetch().catch(() => null);
       const me = guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
-      const tree = buildChannelTree(guild, me);
+      const tree = await buildChannelTree(guild, me);
 
       res.json({
         id: guild.id,
@@ -241,6 +337,7 @@ function createDiscordMirrorRouter(client) {
         categories: tree.categories,
         uncategorized: tree.uncategorized,
         bot: serializeUser(client.user),
+        botIsAdmin: Boolean(me?.permissions?.has(PermissionFlagsBits.Administrator)),
       });
     } catch (error) {
       console.error('[Corvo] GET /api/guild:', error);
@@ -265,7 +362,24 @@ function createDiscordMirrorRouter(client) {
 
       const me = guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
       if (!botCanViewChannel(channel, me)) {
-        res.status(403).json({ error: 'Bot sem permissão para ler este canal.' });
+        res.status(403).json({ error: 'Bot sem permissão para ver este canal.' });
+        return;
+      }
+
+      if (channel.type === ChannelType.GuildForum || channel.type === ChannelType.GuildMedia) {
+        res.status(400).json({
+          error: 'Este é um fórum. Abra um dos tópicos listados (nome › tópico).',
+        });
+        return;
+      }
+
+      if (!channel.isTextBased?.()) {
+        res.status(400).json({ error: 'Este canal não possui histórico de mensagens de texto.' });
+        return;
+      }
+
+      if (!botCanReadHistory(channel, me)) {
+        res.status(403).json({ error: 'Bot sem permissão para ler o histórico deste canal.' });
         return;
       }
 

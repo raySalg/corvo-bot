@@ -435,7 +435,7 @@ async function bootstrap() {
     }
     renderChannels(guild);
     els.app.classList.remove('is-booting');
-    setBusyHint('');
+    setBusyHint(guild.botIsAdmin ? '' : 'Bot sem Administrador — alguns canais podem faltar.');
 
     const first =
       guild.uncategorized?.[0] ||
