@@ -2,6 +2,14 @@ const path = require('node:path');
 const express = require('express');
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { getDiscordGuildId } = require('../constants/discord');
+const { collectMessagesInRange, formatMessagesAsTxt } = require('../utils/messageExport');
+const {
+  loadScheduleConfig,
+  saveScheduleConfig,
+  validateScheduleInput,
+  runScheduledExport,
+  TIME_ZONE,
+} = require('../services/exportSchedule');
 
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public', 'discord-mirror');
 
@@ -405,6 +413,82 @@ function createDiscordMirrorRouter(client) {
     }
   });
 
+  router.get('/api/channels/:channelId/export', async (req, res) => {
+    try {
+      if (!client?.isReady?.()) {
+        res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
+        return;
+      }
+
+      const fromRaw = String(req.query.from || '').trim();
+      const toRaw = String(req.query.to || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fromRaw) || !/^\d{4}-\d{2}-\d{2}$/.test(toRaw)) {
+        res.status(400).json({ error: 'Informe from e to no formato AAAA-MM-DD.' });
+        return;
+      }
+
+      const fromDate = new Date(`${fromRaw}T00:00:00`);
+      const toDate = new Date(`${toRaw}T23:59:59.999`);
+      if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+        res.status(400).json({ error: 'Datas inválidas.' });
+        return;
+      }
+      if (fromDate > toDate) {
+        res.status(400).json({ error: 'A data inicial deve ser anterior ou igual à data final.' });
+        return;
+      }
+
+      const maxMessages = 50_000;
+
+      const guild = await resolveGuild(client);
+      const channel = await client.channels.fetch(req.params.channelId).catch(() => null);
+
+      if (!channel || channel.guildId !== guild.id) {
+        res.status(404).json({ error: 'Canal não encontrado neste servidor.' });
+        return;
+      }
+
+      const me = guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
+      if (!botCanViewChannel(channel, me) || !botCanReadHistory(channel, me)) {
+        res.status(403).json({ error: 'Bot sem permissão para exportar este canal.' });
+        return;
+      }
+
+      if (!channel.isTextBased?.() || channel.type === ChannelType.GuildForum || channel.type === ChannelType.GuildMedia) {
+        res.status(400).json({ error: 'Só é possível exportar canais/tópicos de texto.' });
+        return;
+      }
+
+      const collected = await collectMessagesInRange(channel, {
+        fromMs: fromDate.getTime(),
+        toMs: toDate.getTime(),
+        maxMessages,
+      });
+
+      const txt = formatMessagesAsTxt({
+        guildName: guild.name,
+        channelName: channel.name,
+        from: fromRaw,
+        to: toRaw,
+        messages: collected,
+        truncated: collected.length >= maxMessages,
+        maxMessages,
+      });
+
+      const safeName = String(channel.name || 'canal')
+        .replace(/[^\w\-À-ÿ]+/gi, '_')
+        .slice(0, 40);
+      const filename = `${safeName}_${fromRaw}_${toRaw}.txt`;
+
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(txt);
+    } catch (error) {
+      console.error('[Corvo] GET /api/channels/:id/export:', error);
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao exportar mensagens.' });
+    }
+  });
+
   router.post('/api/channels/:channelId/messages', async (req, res) => {
     try {
       if (!client?.isReady?.()) {
@@ -457,6 +541,43 @@ function createDiscordMirrorRouter(client) {
     } catch (error) {
       console.error('[Corvo] GET /api/members:', error);
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao carregar membros.' });
+    }
+  });
+
+  router.get('/api/export-schedule', async (_req, res) => {
+    try {
+      const config = await loadScheduleConfig();
+      res.json({
+        timezone: TIME_ZONE,
+        config,
+        storage: 'mongodb',
+      });
+    } catch (error) {
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao carregar agendamento.' });
+    }
+  });
+
+  router.put('/api/export-schedule', async (req, res) => {
+    try {
+      const validated = validateScheduleInput(req.body || {});
+      const config = await saveScheduleConfig(validated);
+      res.json({ timezone: TIME_ZONE, config, storage: 'mongodb' });
+    } catch (error) {
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao salvar agendamento.' });
+    }
+  });
+
+  router.post('/api/export-schedule/run', async (_req, res) => {
+    try {
+      if (!client?.isReady?.()) {
+        res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
+        return;
+      }
+      const result = await runScheduledExport(client, { manual: true });
+      res.json(result);
+    } catch (error) {
+      console.error('[Corvo] POST /api/export-schedule/run:', error);
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao executar exportação.' });
     }
   });
 

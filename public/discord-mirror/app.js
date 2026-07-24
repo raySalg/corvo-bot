@@ -32,6 +32,25 @@ const els = {
   sendBtn: document.getElementById('send-btn'),
   memberList: document.getElementById('member-list'),
   toast: document.getElementById('toast'),
+  exportBtn: document.getElementById('export-btn'),
+  exportModal: document.getElementById('export-modal'),
+  exportForm: document.getElementById('export-form'),
+  exportChannelLabel: document.getElementById('export-channel-label'),
+  exportFrom: document.getElementById('export-from'),
+  exportTo: document.getElementById('export-to'),
+  exportSubmit: document.getElementById('export-submit'),
+  scheduleBtn: document.getElementById('schedule-btn'),
+  scheduleModal: document.getElementById('schedule-modal'),
+  scheduleForm: document.getElementById('schedule-form'),
+  scheduleEnabled: document.getElementById('schedule-enabled'),
+  scheduleSources: document.getElementById('schedule-sources'),
+  scheduleDestination: document.getElementById('schedule-destination'),
+  scheduleHour: document.getElementById('schedule-hour'),
+  scheduleMinute: document.getElementById('schedule-minute'),
+  scheduleDays: document.getElementById('schedule-days'),
+  scheduleStatus: document.getElementById('schedule-status'),
+  scheduleSubmit: document.getElementById('schedule-submit'),
+  scheduleRunNow: document.getElementById('schedule-run-now'),
 };
 
 let scrollLoadTimer = null;
@@ -309,11 +328,261 @@ function updateComposer() {
   els.messageInput.disabled = !state.activeChannelId || !state.canSend;
   els.sendBtn.dataset.locked = enabled ? '0' : '1';
   els.sendBtn.disabled = !enabled;
+  els.exportBtn.disabled = !state.activeChannelId;
   els.messageInput.placeholder = !state.activeChannelId
     ? 'Selecione um canal para conversar'
     : state.canSend
       ? `Conversar em #${els.activeChannelName.textContent}`
       : 'Bot sem permissão para enviar neste canal';
+}
+
+function toInputDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function openExportModal() {
+  if (!state.activeChannelId) return;
+  const today = new Date();
+  const monthAgo = new Date();
+  monthAgo.setDate(today.getDate() - 30);
+
+  els.exportChannelLabel.textContent = els.activeChannelName.textContent || 'canal';
+  els.exportFrom.value = toInputDate(monthAgo);
+  els.exportTo.value = toInputDate(today);
+  els.exportModal.classList.remove('hidden');
+}
+
+function closeExportModal() {
+  els.exportModal.classList.add('hidden');
+  setButtonLoading(els.exportSubmit, false);
+}
+
+async function downloadExport(event) {
+  event.preventDefault();
+  if (!state.activeChannelId) return;
+
+  const from = els.exportFrom.value;
+  const to = els.exportTo.value;
+
+  if (!from || !to) {
+    showToast('Informe as duas datas.', true);
+    return;
+  }
+  if (from > to) {
+    showToast('A data inicial deve ser anterior ou igual à final.', true);
+    return;
+  }
+
+  setButtonLoading(els.exportSubmit, true);
+  setBusyHint('Preparando download…');
+
+  try {
+    const params = new URLSearchParams({ from, to });
+    const response = await fetch(`/api/channels/${state.activeChannelId}/export?${params}`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Erro HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match?.[1] || `chat_${from}_${to}.txt`;
+
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+
+    closeExportModal();
+    setBusyHint('');
+    showToast('Download iniciado.');
+  } catch (error) {
+    showToast(error.message, true);
+    setBusyHint('');
+  } finally {
+    setButtonLoading(els.exportSubmit, false);
+  }
+}
+
+function flattenGuildChannels(guild) {
+  const groups = [];
+
+  if (guild.uncategorized?.length) {
+    groups.push({
+      id: 'uncategorized',
+      name: 'Canais de texto',
+      channels: guild.uncategorized,
+    });
+  }
+
+  for (const category of guild.categories || []) {
+    groups.push({
+      id: category.id,
+      name: category.name,
+      channels: category.channels || [],
+    });
+  }
+
+  return groups;
+}
+
+function allFlatChannels(guild) {
+  return flattenGuildChannels(guild).flatMap((group) => group.channels);
+}
+
+function renderSchedulePickers(selectedIds = [], destinationId = null) {
+  if (!state.guild) return;
+
+  const groups = flattenGuildChannels(state.guild);
+  const selected = new Set(selectedIds);
+
+  els.scheduleSources.innerHTML = groups
+    .map((group) => {
+      const channelIds = group.channels.map((channel) => channel.id);
+      const allChecked = channelIds.length > 0 && channelIds.every((id) => selected.has(id));
+      return `
+        <div class="source-group" data-group-id="${escapeHtml(group.id)}">
+          <label class="source-group-title">
+            <input type="checkbox" class="group-check" data-group-id="${escapeHtml(group.id)}" ${allChecked ? 'checked' : ''} />
+            <span>${escapeHtml(group.name)}</span>
+          </label>
+          ${group.channels
+            .map(
+              (channel) => `
+            <label class="source-item">
+              <input type="checkbox" class="channel-check" value="${escapeHtml(channel.id)}" data-group-id="${escapeHtml(group.id)}" ${selected.has(channel.id) ? 'checked' : ''} />
+              <span># ${escapeHtml(channel.name)}</span>
+            </label>`,
+            )
+            .join('')}
+        </div>`;
+    })
+    .join('') || '<p class="modal-note">Nenhum canal disponível.</p>';
+
+  const options = allFlatChannels(state.guild)
+    .map(
+      (channel) =>
+        `<option value="${escapeHtml(channel.id)}" ${channel.id === destinationId ? 'selected' : ''}># ${escapeHtml(channel.name)}</option>`,
+    )
+    .join('');
+  els.scheduleDestination.innerHTML = `<option value="">Selecione…</option>${options}`;
+}
+
+function syncGroupCheckbox(groupId) {
+  const groupChecks = [...els.scheduleSources.querySelectorAll(`.channel-check[data-group-id="${groupId}"]`)];
+  const groupBox = els.scheduleSources.querySelector(`.group-check[data-group-id="${groupId}"]`);
+  if (!groupBox || groupChecks.length === 0) return;
+  groupBox.checked = groupChecks.every((input) => input.checked);
+  groupBox.indeterminate = !groupBox.checked && groupChecks.some((input) => input.checked);
+}
+
+function getSelectedSourceIds() {
+  return [...els.scheduleSources.querySelectorAll('.channel-check:checked')].map((input) => input.value);
+}
+
+function getSelectedDays() {
+  return [...els.scheduleDays.querySelectorAll('input[type="checkbox"]:checked')].map((input) => Number(input.value));
+}
+
+function setSelectedDays(days) {
+  const selected = new Set((days || []).map(Number));
+  for (const input of els.scheduleDays.querySelectorAll('input[type="checkbox"]')) {
+    input.checked = selected.has(Number(input.value));
+  }
+}
+
+function formatScheduleStatus(config, timezone) {
+  if (!config) return `Fuso: ${timezone}`;
+  const days = (config.daysOfWeek || [])
+    .map((day) => ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][day] || day)
+    .join(', ');
+  const time = `${String(config.hour).padStart(2, '0')}:${String(config.minute).padStart(2, '0')}`;
+  const last = config.lastRunAt ? new Date(config.lastRunAt).toLocaleString('pt-BR') : 'nunca';
+  const err = config.lastError ? ` · Último erro: ${config.lastError}` : '';
+  return `Fuso ${timezone} · ${config.enabled ? 'Ativo' : 'Desativado'} · ${time} · ${days || '—'} · Última execução: ${last}${err}`;
+}
+
+async function openScheduleModal() {
+  if (!state.guild) return;
+  try {
+    const data = await api('/api/export-schedule');
+    const config = data.config || {};
+    els.scheduleEnabled.checked = Boolean(config.enabled);
+    els.scheduleHour.value = Number.isFinite(config.hour) ? config.hour : 0;
+    els.scheduleMinute.value = Number.isFinite(config.minute) ? config.minute : 0;
+    setSelectedDays(config.daysOfWeek || [0, 1, 2, 3, 4, 5, 6]);
+    renderSchedulePickers(config.sourceChannelIds || [], config.destinationChannelId);
+    els.scheduleStatus.textContent = formatScheduleStatus(config, data.timezone || 'America/Sao_Paulo');
+    els.scheduleModal.classList.remove('hidden');
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+function closeScheduleModal() {
+  els.scheduleModal.classList.add('hidden');
+  setButtonLoading(els.scheduleSubmit, false);
+}
+
+async function saveSchedule(event) {
+  event.preventDefault();
+  setButtonLoading(els.scheduleSubmit, true);
+  try {
+    const payload = {
+      enabled: els.scheduleEnabled.checked,
+      sourceChannelIds: getSelectedSourceIds(),
+      destinationChannelId: els.scheduleDestination.value || null,
+      hour: Number(els.scheduleHour.value),
+      minute: Number(els.scheduleMinute.value),
+      daysOfWeek: getSelectedDays(),
+    };
+    const data = await api('/api/export-schedule', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    els.scheduleStatus.textContent = formatScheduleStatus(data.config, data.timezone);
+    showToast('Agendamento salvo.');
+    closeScheduleModal();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    setButtonLoading(els.scheduleSubmit, false);
+  }
+}
+
+async function runScheduleNow() {
+  setButtonLoading(els.scheduleRunNow, true);
+  try {
+    // Salva o estado atual do formulário antes de executar
+    const payload = {
+      enabled: els.scheduleEnabled.checked,
+      sourceChannelIds: getSelectedSourceIds(),
+      destinationChannelId: els.scheduleDestination.value || null,
+      hour: Number(els.scheduleHour.value),
+      minute: Number(els.scheduleMinute.value),
+      daysOfWeek: getSelectedDays(),
+    };
+    await api('/api/export-schedule', {
+      method: 'PUT',
+      body: JSON.stringify({ ...payload, enabled: payload.enabled }),
+    });
+    const result = await api('/api/export-schedule/run', { method: 'POST' });
+    showToast(`TXT enviado (${result.total} mensagens).`);
+    const data = await api('/api/export-schedule');
+    els.scheduleStatus.textContent = formatScheduleStatus(data.config, data.timezone);
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    setButtonLoading(els.scheduleRunNow, false);
+  }
 }
 
 async function selectChannel(channelId, channelName, canSend) {
@@ -464,6 +733,38 @@ els.channelList.addEventListener('click', (event) => {
 
 els.loadOlderBtn.addEventListener('click', () => loadMessages({ older: true }));
 els.composer.addEventListener('submit', sendMessage);
+els.exportBtn.addEventListener('click', openExportModal);
+els.exportForm.addEventListener('submit', downloadExport);
+els.exportModal.addEventListener('click', (event) => {
+  if (event.target.closest('[data-close-modal]')) closeExportModal();
+});
+
+els.scheduleBtn.addEventListener('click', openScheduleModal);
+els.scheduleForm.addEventListener('submit', saveSchedule);
+els.scheduleRunNow.addEventListener('click', runScheduleNow);
+els.scheduleModal.addEventListener('click', (event) => {
+  if (event.target.closest('[data-close-schedule]')) closeScheduleModal();
+});
+els.scheduleSources.addEventListener('change', (event) => {
+  const groupCheck = event.target.closest('.group-check');
+  if (groupCheck) {
+    const groupId = groupCheck.dataset.groupId;
+    for (const input of els.scheduleSources.querySelectorAll(`.channel-check[data-group-id="${groupId}"]`)) {
+      input.checked = groupCheck.checked;
+    }
+    groupCheck.indeterminate = false;
+    return;
+  }
+
+  const channelCheck = event.target.closest('.channel-check');
+  if (channelCheck) syncGroupCheckbox(channelCheck.dataset.groupId);
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  if (!els.exportModal.classList.contains('hidden')) closeExportModal();
+  if (!els.scheduleModal.classList.contains('hidden')) closeScheduleModal();
+});
 
 els.messages.addEventListener('scroll', () => {
   clearTimeout(scrollLoadTimer);

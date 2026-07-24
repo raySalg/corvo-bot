@@ -15,6 +15,8 @@ const {
   getDiscordStatus,
 } = require('./botState');
 const { validateBotToken } = require('./utils/discordAuth');
+const { startExportScheduler } = require('./services/exportSchedule');
+const { connectDatabase } = require('./config/database');
 
 const GATEWAY_WARN_MS = 90_000;
 
@@ -58,6 +60,18 @@ client.once(Events.ClientReady, (readyClient) => {
   }
 
   setStartupPhase('ready');
+
+  void (async () => {
+    try {
+      setStartupPhase('mongodb');
+      await connectDatabase();
+      await startExportScheduler(readyClient);
+      setStartupPhase('ready');
+    } catch (error) {
+      setStartupPhase('mongodb_failed');
+      console.error('[Corvo] MongoDB indisponível — agendamento TXT não persistirá:', error.message ?? error);
+    }
+  })();
 });
 
 client.on(Events.Error, (error) => {

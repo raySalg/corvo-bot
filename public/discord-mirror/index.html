@@ -20,6 +20,9 @@
             <img id="guild-icon" class="server-icon" alt="" hidden />
             <h1 id="guild-name">Conectando…</h1>
           </div>
+          <button type="button" id="schedule-btn" class="header-btn schedule-btn" title="Configurar exportação agendada">
+            Agendar
+          </button>
         </header>
         <nav id="channel-list" class="channel-list" aria-label="Canais"></nav>
         <footer class="user-panel">
@@ -40,7 +43,12 @@
             <span class="hash" aria-hidden="true">#</span>
             <h2 id="active-channel-name">selecione um canal</h2>
           </div>
-          <p id="connection-hint" class="connection-hint"></p>
+          <div class="chat-header-actions">
+            <p id="connection-hint" class="connection-hint"></p>
+            <button type="button" id="export-btn" class="header-btn" disabled title="Baixar mensagens em TXT">
+              Baixar TXT
+            </button>
+          </div>
         </header>
 
         <div id="messages" class="messages" aria-live="polite">
@@ -85,6 +93,103 @@
     </div>
 
     <div id="toast" class="toast hidden" role="status"></div>
+
+    <div id="export-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="export-title">
+      <div class="modal-backdrop" data-close-modal></div>
+      <div class="modal-card">
+        <header class="modal-header">
+          <h3 id="export-title">Baixar mensagens</h3>
+          <button type="button" class="modal-close" data-close-modal aria-label="Fechar">×</button>
+        </header>
+        <p class="modal-subtitle">
+          Canal: <strong id="export-channel-label">—</strong>
+        </p>
+        <form id="export-form" class="modal-form">
+          <label class="field">
+            <span>De</span>
+            <input id="export-from" type="date" required />
+          </label>
+          <label class="field">
+            <span>Até</span>
+            <input id="export-to" type="date" required />
+          </label>
+          <p class="modal-note">O arquivo será um `.txt` com autor, data, texto, embeds e anexos no período escolhido.</p>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" data-close-modal>Cancelar</button>
+            <button type="submit" id="export-submit" class="btn-primary">
+              <span class="btn-label">Baixar</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="schedule-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="schedule-title">
+      <div class="modal-backdrop" data-close-schedule></div>
+      <div class="modal-card modal-card-wide">
+        <header class="modal-header">
+          <h3 id="schedule-title">Exportação agendada</h3>
+          <button type="button" class="modal-close" data-close-schedule aria-label="Fechar">×</button>
+        </header>
+        <p class="modal-subtitle">
+          Selecione canais/tópicos (ou categorias inteiras), o destino do TXT e o horário (fuso America/Sao_Paulo).
+          A configuração é salva no MongoDB.
+        </p>
+        <form id="schedule-form" class="modal-form">
+          <label class="toggle-row">
+            <input id="schedule-enabled" type="checkbox" />
+            <span>Ativar envio automático</span>
+          </label>
+
+          <div class="field">
+            <span>Canais de origem</span>
+            <div id="schedule-sources" class="source-picker"></div>
+          </div>
+
+          <label class="field">
+            <span>Canal de destino (recebe o TXT)</span>
+            <select id="schedule-destination" required></select>
+          </label>
+
+          <div class="schedule-time-row">
+            <label class="field">
+              <span>Hora</span>
+              <input id="schedule-hour" type="number" min="0" max="23" value="0" required />
+            </label>
+            <label class="field">
+              <span>Minuto</span>
+              <input id="schedule-minute" type="number" min="0" max="59" value="0" required />
+            </label>
+          </div>
+
+          <div class="field">
+            <span>Dias da semana</span>
+            <div id="schedule-days" class="days-picker">
+              <label><input type="checkbox" value="0" checked /> Dom</label>
+              <label><input type="checkbox" value="1" checked /> Seg</label>
+              <label><input type="checkbox" value="2" checked /> Ter</label>
+              <label><input type="checkbox" value="3" checked /> Qua</label>
+              <label><input type="checkbox" value="4" checked /> Qui</label>
+              <label><input type="checkbox" value="5" checked /> Sex</label>
+              <label><input type="checkbox" value="6" checked /> Sáb</label>
+            </div>
+          </div>
+
+          <p id="schedule-status" class="modal-note"></p>
+
+          <div class="modal-actions">
+            <button type="button" id="schedule-run-now" class="btn-secondary">Enviar agora</button>
+            <button type="button" class="btn-secondary" data-close-schedule>Cancelar</button>
+            <button type="submit" id="schedule-submit" class="btn-primary">
+              <span class="btn-label">Salvar</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <script src="/app.js"></script>
   </body>
 </html>
