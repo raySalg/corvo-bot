@@ -13,6 +13,7 @@ const DEFAULT_SCHEDULE = {
   enabled: false,
   sourceChannelIds: [],
   destinationChannelId: null,
+  dateMode: 'range',
   dateFrom: null,
   dateTo: null,
   hour: 0,
@@ -48,6 +49,27 @@ function parseDayBounds(fromRaw, toRaw) {
   return { fromMs: fromDate.getTime(), toMs: toDate.getTime(), fromRaw, toRaw };
 }
 
+function normalizeDateMode(value) {
+  return value === 'today' ? 'today' : 'range';
+}
+
+function getSaoPauloDateString(date = new Date()) {
+  const parts = getSaoPauloParts(date);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+/** Resolve o período efetivo: intervalo fixo ou o dia corrente (America/Sao_Paulo). */
+function resolveMessageDateBounds(config) {
+  if (normalizeDateMode(config.dateMode) === 'today') {
+    const today = getSaoPauloDateString();
+    return parseDayBounds(today, today);
+  }
+  if (!config.dateFrom || !config.dateTo) {
+    throw Object.assign(new Error('Defina o período (De/Até) das mensagens no agendamento.'), { status: 400 });
+  }
+  return parseDayBounds(config.dateFrom, config.dateTo);
+}
+
 function normalizeDays(days, fallback) {
   const source = Array.isArray(days) ? days : fallback;
   return [...new Set(source.map(Number).filter((day) => day >= 0 && day <= 6))].sort((a, b) => a - b);
@@ -60,6 +82,7 @@ function toPublicConfig(doc) {
     enabled: Boolean(doc.enabled),
     sourceChannelIds: Array.isArray(doc.sourceChannelIds) ? doc.sourceChannelIds.map(String) : [],
     destinationChannelId: doc.destinationChannelId ? String(doc.destinationChannelId) : null,
+    dateMode: normalizeDateMode(doc.dateMode),
     dateFrom: doc.dateFrom ? String(doc.dateFrom) : null,
     dateTo: doc.dateTo ? String(doc.dateTo) : null,
     hour: Number.isFinite(Number(doc.hour)) ? Number(doc.hour) : 0,
@@ -98,6 +121,7 @@ function normalizeConfig(next = {}, base = cachedConfig || DEFAULT_SCHEDULE) {
     destinationChannelId: (next.destinationChannelId ?? base.destinationChannelId)
       ? String(next.destinationChannelId ?? base.destinationChannelId)
       : null,
+    dateMode: normalizeDateMode(next.dateMode ?? base.dateMode),
     dateFrom: (next.dateFrom ?? base.dateFrom) ? String(next.dateFrom ?? base.dateFrom) : null,
     dateTo: (next.dateTo ?? base.dateTo) ? String(next.dateTo ?? base.dateTo) : null,
     lastRunKey: next.lastRunKey !== undefined ? next.lastRunKey : base.lastRunKey ?? null,
@@ -142,6 +166,7 @@ async function saveScheduleConfig(next) {
         enabled: config.enabled,
         sourceChannelIds: config.sourceChannelIds,
         destinationChannelId: config.destinationChannelId,
+        dateMode: config.dateMode,
         dateFrom: config.dateFrom,
         dateTo: config.dateTo,
         hour: config.hour,
@@ -208,6 +233,7 @@ function validateScheduleInput(body) {
     : [];
   const destinationChannelId = body.destinationChannelId ? String(body.destinationChannelId) : null;
   const aiDestinationChannelId = body.aiDestinationChannelId ? String(body.aiDestinationChannelId) : null;
+  const dateMode = normalizeDateMode(body.dateMode);
   const dateFrom = body.dateFrom ? String(body.dateFrom).trim() : null;
   const dateTo = body.dateTo ? String(body.dateTo).trim() : null;
   const hour = Number(body.hour);
@@ -232,7 +258,7 @@ function validateScheduleInput(body) {
   if (aiEnabled && !aiDestinationChannelId && !destinationChannelId) {
     throw Object.assign(new Error('Selecione o canal de destino da resposta da IA.'), { status: 400 });
   }
-  if (enabled || aiEnabled || dateFrom || dateTo) {
+  if (dateMode === 'range' && (enabled || aiEnabled || dateFrom || dateTo)) {
     if (!dateFrom || !dateTo || !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
       throw Object.assign(new Error('Informe o período das mensagens (De/Até) no formato AAAA-MM-DD.'), {
         status: 400,
@@ -263,6 +289,7 @@ function validateScheduleInput(body) {
     enabled,
     sourceChannelIds,
     destinationChannelId,
+    dateMode,
     dateFrom,
     dateTo,
     hour,
@@ -313,11 +340,7 @@ async function resolveChannelsForExport(client, guild, sourceChannelIds) {
 
 async function buildScheduledExport(client, config) {
   const guild = await resolveGuild(client);
-  if (!config.dateFrom || !config.dateTo) {
-    throw Object.assign(new Error('Defina o período (De/Até) das mensagens no agendamento.'), { status: 400 });
-  }
-
-  const { fromMs, toMs, fromRaw, toRaw } = parseDayBounds(config.dateFrom, config.dateTo);
+  const { fromMs, toMs, fromRaw, toRaw } = resolveMessageDateBounds(config);
   const channels = await resolveChannelsForExport(client, guild, config.sourceChannelIds);
 
   if (channels.length === 0) {
@@ -383,7 +406,7 @@ async function runScheduledExport(client, { manual = false } = {}) {
   if (!config.destinationChannelId || config.sourceChannelIds.length === 0) {
     throw Object.assign(new Error('Agendamento incompleto: origem e destino são obrigatórios.'), { status: 400 });
   }
-  if (!config.dateFrom || !config.dateTo) {
+  if (normalizeDateMode(config.dateMode) !== 'today' && (!config.dateFrom || !config.dateTo)) {
     throw Object.assign(new Error('Agendamento incompleto: defina o período De/Até das mensagens.'), {
       status: 400,
     });
@@ -404,10 +427,15 @@ async function runScheduledExport(client, { manual = false } = {}) {
       name: `export_${stamp}.txt`,
     });
 
+    const periodLabel =
+      normalizeDateMode(config.dateMode) === 'today'
+        ? `hoje (**${fromRaw}**)`
+        : `**${fromRaw} → ${toRaw}**`;
+
     await destination.send({
       content:
         `### Exportação ${manual ? 'manual' : 'agendada'}\n` +
-        `Período **${fromRaw} → ${toRaw}** · ${sections.length} canal(is)/tópico(s) · ${total} mensagem(ns)`,
+        `Período ${periodLabel} · ${sections.length} canal(is)/tópico(s) · ${total} mensagem(ns)`,
       files: [file],
     });
 
@@ -451,7 +479,7 @@ async function runScheduledAiAnalysis(client, { manual = false } = {}) {
   if (!String(config.aiPrompt || '').trim()) {
     throw Object.assign(new Error('Defina o prompt da análise com IA.'), { status: 400 });
   }
-  if (!config.dateFrom || !config.dateTo) {
+  if (normalizeDateMode(config.dateMode) !== 'today' && (!config.dateFrom || !config.dateTo)) {
     throw Object.assign(new Error('Agendamento incompleto: defina o período De/Até das mensagens.'), {
       status: 400,
     });
@@ -478,10 +506,17 @@ async function runScheduledAiAnalysis(client, { manual = false } = {}) {
       },
     });
 
+    const periodLabel =
+      normalizeDateMode(config.dateMode) === 'today'
+        ? `hoje (**${fromRaw}**)`
+        : `**${fromRaw} → ${toRaw}**`;
+
     const header =
       `### Análise IA ${manual ? 'manual' : 'agendada'}\n` +
-      `Período **${fromRaw} → ${toRaw}** · ${sections.length} canal(is)/tópico(s) · ${total} mensagem(ns)` +
-      (analysis.truncatedInput ? ' · material truncado' : '');
+      `Período ${periodLabel} · ${sections.length} canal(is)/tópico(s) · ${total} mensagem(ns)` +
+      (analysis.truncatedInput ? ' · material truncado' : '') +
+      `\nModelo: \`${analysis.requestedModel || analysis.model}\`` +
+      (analysis.fallbackUsed ? ' _(troca automática por limite)_' : '');
 
     const { messageCount } = await sendAsDiscordMessages(destination, {
       header,

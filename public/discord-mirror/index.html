@@ -133,7 +133,7 @@
           <button type="button" class="modal-close" data-close-schedule aria-label="Fechar">×</button>
         </header>
         <p class="modal-subtitle">
-          Selecione canais/tópicos, o período das mensagens e configure o envio do TXT e/ou a análise com IA (Google AI Studio / Gemini).
+          Selecione canais/tópicos, o período das mensagens (intervalo ou somente hoje) e configure o envio do TXT e/ou a análise com IA (Google AI Studio / Gemini).
           Fuso America/Sao_Paulo. Em fóruns, use “(todos os tópicos)” para incluir o fórum inteiro.
         </p>
         <form id="schedule-form" class="modal-form">
@@ -142,14 +142,31 @@
             <div id="schedule-sources" class="source-picker"></div>
           </div>
 
-          <div class="schedule-time-row">
+          <div class="field">
+            <span>Período das mensagens</span>
+            <div class="date-mode-picker" id="schedule-date-mode">
+              <label>
+                <input type="radio" name="schedule-date-mode" value="range" checked />
+                Intervalo (de → até)
+              </label>
+              <label>
+                <input type="radio" name="schedule-date-mode" value="today" />
+                Somente hoje
+              </label>
+            </div>
+            <p class="modal-note date-mode-hint" id="schedule-date-today-hint" hidden>
+              Usa o dia corrente no fuso America/Sao_Paulo (no envio automático, o “hoje” é o dia da execução).
+            </p>
+          </div>
+
+          <div id="schedule-date-range" class="schedule-time-row">
             <label class="field">
               <span>Mensagens de</span>
-              <input id="schedule-date-from" type="date" required />
+              <input id="schedule-date-from" type="date" />
             </label>
             <label class="field">
               <span>Mensagens até</span>
-              <input id="schedule-date-to" type="date" required />
+              <input id="schedule-date-to" type="date" />
             </label>
           </div>
 

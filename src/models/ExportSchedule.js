@@ -6,6 +6,8 @@ const exportScheduleSchema = new mongoose.Schema(
     enabled: { type: Boolean, default: false },
     sourceChannelIds: { type: [String], default: [] },
     destinationChannelId: { type: String, default: null },
+    /** 'range' = de/até fixos | 'today' = só o dia corrente (America/Sao_Paulo) */
+    dateMode: { type: String, default: 'range', enum: ['range', 'today'] },
     dateFrom: { type: String, default: null },
     dateTo: { type: String, default: null },
     hour: { type: Number, default: 0, min: 0, max: 23 },

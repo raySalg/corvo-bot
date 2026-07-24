@@ -1011,6 +1011,25 @@ input {
   gap: 12px;
 }
 
+.date-mode-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.date-mode-picker label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.date-mode-hint {
+  margin: 6px 0 0;
+}
+
 .days-picker {
   display: flex;
   flex-wrap: wrap;

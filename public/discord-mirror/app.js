@@ -47,6 +47,9 @@ const els = {
   scheduleDestination: document.getElementById('schedule-destination'),
   scheduleDateFrom: document.getElementById('schedule-date-from'),
   scheduleDateTo: document.getElementById('schedule-date-to'),
+  scheduleDateRange: document.getElementById('schedule-date-range'),
+  scheduleDateMode: document.getElementById('schedule-date-mode'),
+  scheduleDateTodayHint: document.getElementById('schedule-date-today-hint'),
   scheduleHour: document.getElementById('schedule-hour'),
   scheduleMinute: document.getElementById('schedule-minute'),
   scheduleDays: document.getElementById('schedule-days'),
@@ -517,10 +520,37 @@ function dayLabels(days) {
     .join(', ');
 }
 
+function getSelectedDateMode() {
+  const checked = els.scheduleDateMode?.querySelector('input[name="schedule-date-mode"]:checked');
+  return checked?.value === 'today' ? 'today' : 'range';
+}
+
+function setSelectedDateMode(mode) {
+  const value = mode === 'today' ? 'today' : 'range';
+  for (const input of els.scheduleDateMode.querySelectorAll('input[name="schedule-date-mode"]')) {
+    input.checked = input.value === value;
+  }
+  syncScheduleDateModeUi();
+}
+
+function syncScheduleDateModeUi() {
+  const todayMode = getSelectedDateMode() === 'today';
+  els.scheduleDateRange.hidden = todayMode;
+  els.scheduleDateTodayHint.hidden = !todayMode;
+  els.scheduleDateFrom.required = !todayMode;
+  els.scheduleDateTo.required = !todayMode;
+  els.scheduleDateFrom.disabled = todayMode;
+  els.scheduleDateTo.disabled = todayMode;
+}
+
 function formatScheduleStatus(config, timezone) {
   if (!config) return `Fuso: ${timezone}`;
   const period =
-    config.dateFrom && config.dateTo ? `${config.dateFrom} → ${config.dateTo}` : 'período não definido';
+    config.dateMode === 'today'
+      ? 'somente hoje'
+      : config.dateFrom && config.dateTo
+        ? `${config.dateFrom} → ${config.dateTo}`
+        : 'período não definido';
   const txtTime = `${String(config.hour).padStart(2, '0')}:${String(config.minute).padStart(2, '0')}`;
   const aiTime = `${String(config.aiHour ?? 0).padStart(2, '0')}:${String(config.aiMinute ?? 0).padStart(2, '0')}`;
   const lastTxt = config.lastRunAt ? new Date(config.lastRunAt).toLocaleString('pt-BR') : 'nunca';
@@ -536,12 +566,14 @@ function formatScheduleStatus(config, timezone) {
 }
 
 function buildSchedulePayload() {
+  const dateMode = getSelectedDateMode();
   return {
     enabled: els.scheduleEnabled.checked,
     sourceChannelIds: getSelectedSourceIds(),
     destinationChannelId: els.scheduleDestination.value || null,
-    dateFrom: els.scheduleDateFrom.value || null,
-    dateTo: els.scheduleDateTo.value || null,
+    dateMode,
+    dateFrom: dateMode === 'range' ? els.scheduleDateFrom.value || null : null,
+    dateTo: dateMode === 'range' ? els.scheduleDateTo.value || null : null,
     hour: Number(els.scheduleHour.value),
     minute: Number(els.scheduleMinute.value),
     daysOfWeek: getSelectedDaysFrom(els.scheduleDays),
@@ -568,6 +600,7 @@ async function openScheduleModal() {
     els.scheduleMinute.value = Number.isFinite(config.minute) ? config.minute : 0;
     els.scheduleDateFrom.value = config.dateFrom || toInputDate(monthAgo);
     els.scheduleDateTo.value = config.dateTo || toInputDate(today);
+    setSelectedDateMode(config.dateMode || 'range');
     setSelectedDaysOn(els.scheduleDays, config.daysOfWeek || [0, 1, 2, 3, 4, 5, 6]);
 
     els.scheduleAiEnabled.checked = Boolean(config.aiEnabled);
@@ -807,6 +840,7 @@ els.scheduleBtn.addEventListener('click', openScheduleModal);
 els.scheduleForm.addEventListener('submit', saveSchedule);
 els.scheduleRunNow.addEventListener('click', runScheduleNow);
 els.scheduleRunAiNow.addEventListener('click', runAiScheduleNow);
+els.scheduleDateMode.addEventListener('change', syncScheduleDateModeUi);
 els.scheduleModal.addEventListener('click', (event) => {
   if (event.target.closest('[data-close-schedule]')) closeScheduleModal();
 });
