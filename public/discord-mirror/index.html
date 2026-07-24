@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div id="app" class="app">
+    <div id="app" class="app is-booting">
       <aside class="sidebar channels-sidebar">
         <header class="server-header">
           <div class="server-title">
@@ -23,7 +23,10 @@
         </header>
         <nav id="channel-list" class="channel-list" aria-label="Canais"></nav>
         <footer class="user-panel">
-          <img id="bot-avatar" class="avatar" alt="" />
+          <div class="avatar-wrap">
+            <img id="bot-avatar" class="avatar" alt="" />
+            <span class="status-dot online" aria-hidden="true"></span>
+          </div>
           <div class="user-meta">
             <strong id="bot-name">corvo</strong>
             <span id="bot-status">online</span>
@@ -42,10 +45,19 @@
 
         <div id="messages" class="messages" aria-live="polite">
           <div id="load-older" class="load-older hidden">
-            <button type="button" id="load-older-btn">Carregar mensagens anteriores</button>
+            <button type="button" id="load-older-btn">
+              <span class="btn-label">Carregar mensagens anteriores</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
           </div>
           <div id="message-list" class="message-list"></div>
           <div id="messages-empty" class="empty-state">Escolha um canal à esquerda para ver as mensagens.</div>
+          <div id="messages-loading" class="messages-loading hidden" aria-hidden="true">
+            <div class="skeleton-row"></div>
+            <div class="skeleton-row"></div>
+            <div class="skeleton-row"></div>
+            <div class="skeleton-row"></div>
+          </div>
         </div>
 
         <form id="composer" class="composer" autocomplete="off">
@@ -57,7 +69,10 @@
               placeholder="Selecione um canal para conversar"
               disabled
             />
-            <button type="submit" id="send-btn" disabled>Enviar</button>
+            <button type="submit" id="send-btn" disabled>
+              <span class="btn-label">Enviar</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
           </div>
           <p class="composer-note">Mensagens são enviadas como o bot Corvo.</p>
         </form>
