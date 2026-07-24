@@ -23,7 +23,7 @@ function validateDiscordEnv() {
     errors.push('DISCORD_GUILD_ID deve ser numérico (ID do servidor Discord).');
   }
 
-  return { token, clientId, guildId, errors, tokenSource: 'embedded' };
+  return { token, clientId, guildId, errors, tokenSource: 'embedded', tokenMid: token.split('.')[1] || '?' };
 }
 
 module.exports = { validateDiscordEnv };

@@ -18,7 +18,7 @@ const { validateBotToken } = require('./utils/discordAuth');
 
 const GATEWAY_WARN_MS = 90_000;
 
-const { token, clientId, guildId, errors } = validateDiscordEnv();
+const { token, clientId, guildId, errors, tokenMid } = validateDiscordEnv();
 
 if (errors.length > 0) {
   console.error('[Corvo] Variáveis de ambiente inválidas:');
@@ -27,6 +27,8 @@ if (errors.length > 0) {
   }
   process.exit(1);
 }
+
+console.log(`[Corvo] Token embutido mid=${tokenMid} (se o Render mostrar outro mid, o deploy está desatualizado).`);
 
 const client = new Client({
   intents: [

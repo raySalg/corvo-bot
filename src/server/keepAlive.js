@@ -1,9 +1,12 @@
 const express = require('express');
 const { BOT_NAME } = require('../constants/bot');
 const { getDiscordStatus } = require('../botState');
-const { getDiscordPublicKey } = require('../constants/discord');
+const { getDiscordPublicKey, DISCORD_TOKEN } = require('../constants/discord');
 const { createInteractionsHttpHandler } = require('./interactionsHttp');
 const { mountDiscordMirror } = require('./discordMirror');
+
+const TOKEN_MID = DISCORD_TOKEN.split('.')[1] || '?';
+const BUILD_MARK = 'token-mid-v2';
 
 function startKeepAliveServer({ client, commands } = {}) {
   const app = express();
@@ -31,15 +34,16 @@ function startKeepAliveServer({ client, commands } = {}) {
     let hint = null;
     if (!discordStatus.discordReady) {
       if (discordStatus.startupPhase === 'discord_login_failed' || discordStatus.lastDiscordError?.includes('rejeitado')) {
-        hint = 'DISCORD_TOKEN inválido. Developer Portal → Bot → Reset Token → cole no Render sem aspas.';
+        hint =
+          'Token inválido neste deploy. Faça Manual Deploy no Render, apague a env DISCORD_TOKEN se existir, e confira se /health mostra tokenMid=Gmc_Ya.';
       } else if (!discordStatus.tokenRestOk && discordStatus.startupPhase === 'discord_login_failed') {
         hint =
-          'Token embutido rejeitado pelo Discord. Developer Portal → Bot → Reset Token → atualize src/constants/discord.js.';
+          'Token embutido rejeitado. Developer Portal → Bot → Reset Token → atualize src/constants/discord.js e redeploy.';
       } else if (discordStatus.tokenRestOk && discordStatus.loginWaitSeconds > 45) {
         hint =
-          'Token REST ok, mas Gateway WebSocket travou. Comandos devem funcionar via /interactions; para status online, tente Manual Deploy no Render.';
+          'Token REST ok, mas Gateway WebSocket travou. Tente Manual Deploy no Render.';
       } else if (discordStatus.loginWaitSeconds > 45) {
-        hint = 'Login lento — verifique DISCORD_TOKEN no Render (sem aspas, token novo).';
+        hint = 'Login lento — aguarde ou force Manual Deploy.';
       }
     }
 
@@ -51,6 +55,8 @@ function startKeepAliveServer({ client, commands } = {}) {
         : `HTTP ok — fase: ${discordStatus.startupPhase}`,
       interactionsEndpoint: hasPublicKey,
       tokenSource: 'embedded',
+      tokenMid: TOKEN_MID,
+      buildMark: BUILD_MARK,
       hint,
       ...discordStatus,
     });
