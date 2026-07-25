@@ -18,6 +18,12 @@ const {
   validateBoatosInput,
   runBoatosAnalysis,
 } = require('../services/boatosSchedule');
+const {
+  loadMessageSchedule,
+  saveMessageSchedule,
+  validateMessageScheduleInput,
+  sendScheduledMessage,
+} = require('../services/messageSchedule');
 
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public', 'discord-mirror');
 
@@ -630,6 +636,43 @@ function createDiscordMirrorRouter(client) {
     } catch (error) {
       console.error('[Corvo] POST /api/boatos-schedule/run:', error);
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao gerar boatos.' });
+    }
+  });
+
+  router.get('/api/message-schedule', async (_req, res) => {
+    try {
+      const config = await loadMessageSchedule();
+      res.json({
+        timezone: TIME_ZONE,
+        config,
+        storage: 'mongodb',
+      });
+    } catch (error) {
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao carregar mensagem agendada.' });
+    }
+  });
+
+  router.put('/api/message-schedule', async (req, res) => {
+    try {
+      const validated = validateMessageScheduleInput(req.body || {});
+      const config = await saveMessageSchedule(validated);
+      res.json({ timezone: TIME_ZONE, config, storage: 'mongodb' });
+    } catch (error) {
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao salvar mensagem agendada.' });
+    }
+  });
+
+  router.post('/api/message-schedule/run', async (_req, res) => {
+    try {
+      if (!client?.isReady?.()) {
+        res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
+        return;
+      }
+      const result = await sendScheduledMessage(client, { manual: true });
+      res.json(result);
+    } catch (error) {
+      console.error('[Corvo] POST /api/message-schedule/run:', error);
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao enviar mensagem.' });
     }
   });
 

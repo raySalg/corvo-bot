@@ -17,6 +17,7 @@ const {
 const { validateBotToken } = require('./utils/discordAuth');
 const { startExportScheduler } = require('./services/exportSchedule');
 const { startBoatosScheduler } = require('./services/boatosSchedule');
+const { startMessageScheduler } = require('./services/messageSchedule');
 const { connectDatabase } = require('./config/database');
 
 const GATEWAY_WARN_MS = 90_000;
@@ -68,6 +69,7 @@ client.once(Events.ClientReady, (readyClient) => {
       await connectDatabase();
       await startExportScheduler(readyClient);
       await startBoatosScheduler(readyClient);
+      await startMessageScheduler(readyClient);
       setStartupPhase('ready');
     } catch (error) {
       setStartupPhase('mongodb_failed');

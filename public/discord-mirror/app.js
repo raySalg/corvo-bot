@@ -82,6 +82,18 @@ const els = {
   boatosStatus: document.getElementById('boatos-status'),
   boatosSubmit: document.getElementById('boatos-submit'),
   boatosRunNow: document.getElementById('boatos-run-now'),
+  messageBtn: document.getElementById('message-btn'),
+  messageModal: document.getElementById('message-modal'),
+  messageForm: document.getElementById('message-form'),
+  messageEnabled: document.getElementById('message-enabled'),
+  messageChannel: document.getElementById('message-channel'),
+  messageDate: document.getElementById('message-date'),
+  messageHour: document.getElementById('message-hour'),
+  messageMinute: document.getElementById('message-minute'),
+  messageContent: document.getElementById('message-content'),
+  messageStatus: document.getElementById('message-status'),
+  messageSubmit: document.getElementById('message-submit'),
+  messageRunNow: document.getElementById('message-run-now'),
 };
 
 let scrollLoadTimer = null;
@@ -854,6 +866,97 @@ async function runBoatosNow() {
   }
 }
 
+function formatMessageScheduleStatus(config, timezone) {
+  if (!config) return `Fuso: ${timezone}`;
+  const when =
+    config.date != null
+      ? `${config.date} ${String(config.hour).padStart(2, '0')}:${String(config.minute).padStart(2, '0')}`
+      : 'data não definida';
+  const last = config.lastSentAt ? new Date(config.lastSentAt).toLocaleString('pt-BR') : 'nunca';
+  const err = config.lastError ? ` · erro: ${config.lastError}` : '';
+  return (
+    `Fuso ${timezone} · ${config.enabled ? 'Agendado' : 'Desativado'} · ${when} · Último envio: ${last}${err}`
+  );
+}
+
+function buildMessageSchedulePayload() {
+  return {
+    enabled: els.messageEnabled.checked,
+    channelId: els.messageChannel.value || null,
+    date: els.messageDate.value || null,
+    hour: Number(els.messageHour.value),
+    minute: Number(els.messageMinute.value),
+    content: els.messageContent.value || '',
+  };
+}
+
+function renderMessageChannelPicker(selectedId = null) {
+  if (!state.guild) return;
+  els.messageChannel.innerHTML = `<option value="">Selecione…</option>${channelSelectOptions(selectedId)}`;
+}
+
+async function openMessageModal() {
+  if (!state.guild) return;
+  try {
+    const data = await api('/api/message-schedule');
+    const config = data.config || {};
+    const today = new Date();
+
+    els.messageEnabled.checked = Boolean(config.enabled);
+    els.messageDate.value = config.date || toInputDate(today);
+    els.messageHour.value = Number.isFinite(config.hour) ? config.hour : 12;
+    els.messageMinute.value = Number.isFinite(config.minute) ? config.minute : 0;
+    els.messageContent.value = config.content || '';
+    renderMessageChannelPicker(config.channelId || state.activeChannelId);
+    els.messageStatus.textContent = formatMessageScheduleStatus(config, data.timezone || 'America/Sao_Paulo');
+    els.messageModal.classList.remove('hidden');
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+function closeMessageModal() {
+  els.messageModal.classList.add('hidden');
+  setButtonLoading(els.messageSubmit, false);
+  setButtonLoading(els.messageRunNow, false);
+}
+
+async function saveMessageSchedule(event) {
+  event.preventDefault();
+  setButtonLoading(els.messageSubmit, true);
+  try {
+    const data = await api('/api/message-schedule', {
+      method: 'PUT',
+      body: JSON.stringify(buildMessageSchedulePayload()),
+    });
+    els.messageStatus.textContent = formatMessageScheduleStatus(data.config, data.timezone);
+    showToast('Mensagem agendada salva.');
+    closeMessageModal();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    setButtonLoading(els.messageSubmit, false);
+  }
+}
+
+async function runMessageNow() {
+  setButtonLoading(els.messageRunNow, true);
+  try {
+    await api('/api/message-schedule', {
+      method: 'PUT',
+      body: JSON.stringify(buildMessageSchedulePayload()),
+    });
+    const result = await api('/api/message-schedule/run', { method: 'POST' });
+    showToast(`Mensagem enviada em #${result.channelName}.`);
+    const data = await api('/api/message-schedule');
+    els.messageStatus.textContent = formatMessageScheduleStatus(data.config, data.timezone);
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    setButtonLoading(els.messageRunNow, false);
+  }
+}
+
 async function selectChannel(channelId, channelName, canSend) {
   if (state.activeChannelId === channelId && state.messages.length) return;
 
@@ -1053,11 +1156,19 @@ els.boatosSources.addEventListener('change', (event) => {
   if (channelCheck) syncGroupCheckbox(els.boatosSources, channelCheck.dataset.groupId);
 });
 
+els.messageBtn.addEventListener('click', openMessageModal);
+els.messageForm.addEventListener('submit', saveMessageSchedule);
+els.messageRunNow.addEventListener('click', runMessageNow);
+els.messageModal.addEventListener('click', (event) => {
+  if (event.target.closest('[data-close-message]')) closeMessageModal();
+});
+
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
   if (!els.exportModal.classList.contains('hidden')) closeExportModal();
   if (!els.scheduleModal.classList.contains('hidden')) closeScheduleModal();
   if (!els.boatosModal.classList.contains('hidden')) closeBoatosModal();
+  if (!els.messageModal.classList.contains('hidden')) closeMessageModal();
 });
 
 els.messages.addEventListener('scroll', () => {

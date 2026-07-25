@@ -27,6 +27,9 @@
             <button type="button" id="boatos-btn" class="header-btn schedule-btn" title="Configurar geração de boatos">
               Boatos
             </button>
+            <button type="button" id="message-btn" class="header-btn schedule-btn" title="Agendar mensagem">
+              Mensagem
+            </button>
           </div>
         </header>
         <nav id="channel-list" class="channel-list" aria-label="Canais"></nav>
@@ -374,6 +377,70 @@
             <button type="button" id="boatos-run-now" class="btn-secondary">Gerar boatos agora</button>
             <button type="button" class="btn-secondary" data-close-boatos>Cancelar</button>
             <button type="submit" id="boatos-submit" class="btn-primary">
+              <span class="btn-label">Salvar</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="message-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="message-title">
+      <div class="modal-backdrop" data-close-message></div>
+      <div class="modal-card">
+        <header class="modal-header">
+          <h3 id="message-title">Agendar mensagem</h3>
+          <button type="button" class="modal-close" data-close-message aria-label="Fechar">×</button>
+        </header>
+        <p class="modal-subtitle">
+          Envie uma mensagem pontual em um canal (fuso America/Sao_Paulo). Após o envio agendado, o agendamento
+          desativa sozinho.
+        </p>
+        <form id="message-form" class="modal-form">
+          <label class="toggle-row">
+            <input id="message-enabled" type="checkbox" />
+            <span>Ativar envio agendado</span>
+          </label>
+
+          <label class="field">
+            <span>Canal</span>
+            <select id="message-channel" required></select>
+          </label>
+
+          <div class="schedule-time-row">
+            <label class="field">
+              <span>Data</span>
+              <input id="message-date" type="date" required />
+            </label>
+            <div class="schedule-time-row message-time-pair">
+              <label class="field">
+                <span>Hora</span>
+                <input id="message-hour" type="number" min="0" max="23" value="12" required />
+              </label>
+              <label class="field">
+                <span>Minuto</span>
+                <input id="message-minute" type="number" min="0" max="59" value="0" required />
+              </label>
+            </div>
+          </div>
+
+          <label class="field">
+            <span>Mensagem</span>
+            <textarea
+              id="message-content"
+              rows="5"
+              maxlength="2000"
+              placeholder="Texto que o bot vai enviar no canal…"
+              required
+            ></textarea>
+          </label>
+
+          <p id="message-status" class="modal-note"></p>
+
+          <div class="modal-actions modal-actions-wrap">
+            <button type="button" id="message-run-now" class="btn-secondary">Enviar agora</button>
+            <button type="button" class="btn-secondary" data-close-message>Cancelar</button>
+            <button type="submit" id="message-submit" class="btn-primary">
               <span class="btn-label">Salvar</span>
               <span class="btn-spinner" aria-hidden="true"></span>
             </button>

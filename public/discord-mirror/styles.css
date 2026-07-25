@@ -1033,8 +1033,8 @@ input {
   font-weight: 600;
 }
 
-.date-mode-hint {
-  margin: 6px 0 0;
+.message-time-pair {
+  grid-template-columns: 1fr 1fr;
 }
 
 .days-picker {
