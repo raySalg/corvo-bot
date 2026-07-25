@@ -85,15 +85,16 @@ const els = {
   messageBtn: document.getElementById('message-btn'),
   messageModal: document.getElementById('message-modal'),
   messageForm: document.getElementById('message-form'),
+  messageList: document.getElementById('message-list'),
   messageEnabled: document.getElementById('message-enabled'),
   messageChannel: document.getElementById('message-channel'),
+  messageMentionRole: document.getElementById('message-mention-role'),
   messageDate: document.getElementById('message-date'),
   messageHour: document.getElementById('message-hour'),
   messageMinute: document.getElementById('message-minute'),
   messageContent: document.getElementById('message-content'),
   messageStatus: document.getElementById('message-status'),
   messageSubmit: document.getElementById('message-submit'),
-  messageRunNow: document.getElementById('message-run-now'),
 };
 
 let scrollLoadTimer = null;
@@ -866,23 +867,29 @@ async function runBoatosNow() {
   }
 }
 
-function formatMessageScheduleStatus(config, timezone) {
-  if (!config) return `Fuso: ${timezone}`;
-  const when =
-    config.date != null
-      ? `${config.date} ${String(config.hour).padStart(2, '0')}:${String(config.minute).padStart(2, '0')}`
-      : 'data não definida';
-  const last = config.lastSentAt ? new Date(config.lastSentAt).toLocaleString('pt-BR') : 'nunca';
-  const err = config.lastError ? ` · erro: ${config.lastError}` : '';
-  return (
-    `Fuso ${timezone} · ${config.enabled ? 'Agendado' : 'Desativado'} · ${when} · Último envio: ${last}${err}`
-  );
+function formatMessageScheduleStatus(items, timezone) {
+  const list = Array.isArray(items) ? items : [];
+  const active = list.filter((item) => item.enabled).length;
+  return `Fuso ${timezone} · ${list.length} agendamento(s) · ${active} ativo(s)`;
+}
+
+function channelNameById(channelId) {
+  if (!state.guild || !channelId) return channelId || '—';
+  const channel = allFlatChannels(state.guild).find((entry) => entry.id === channelId);
+  return channel ? `#${channel.name}` : channelId;
+}
+
+function roleNameById(roleId) {
+  if (!roleId) return null;
+  const role = (state.guild?.roles || []).find((entry) => entry.id === roleId);
+  return role ? role.name : roleId;
 }
 
 function buildMessageSchedulePayload() {
   return {
     enabled: els.messageEnabled.checked,
     channelId: els.messageChannel.value || null,
+    mentionRoleId: els.messageMentionRole.value || null,
     date: els.messageDate.value || null,
     hour: Number(els.messageHour.value),
     minute: Number(els.messageMinute.value),
@@ -893,22 +900,70 @@ function buildMessageSchedulePayload() {
 function renderMessageChannelPicker(selectedId = null) {
   if (!state.guild) return;
   els.messageChannel.innerHTML = `<option value="">Selecione…</option>${channelSelectOptions(selectedId)}`;
+
+  const roles = state.guild.roles || [];
+  const selectedRole = els.messageMentionRole.value || '';
+  els.messageMentionRole.innerHTML =
+    `<option value="">Nenhum</option>` +
+    roles
+      .map(
+        (role) =>
+          `<option value="${escapeHtml(role.id)}" ${role.id === selectedRole ? 'selected' : ''}>${escapeHtml(role.name)}</option>`,
+      )
+      .join('');
+}
+
+function renderMessageScheduleList(items = []) {
+  if (!items.length) {
+    els.messageList.innerHTML = '<p class="modal-note">Nenhuma mensagem agendada ainda.</p>';
+    return;
+  }
+
+  els.messageList.innerHTML = items
+    .map((item) => {
+      const time = `${item.date || '—'} ${String(item.hour).padStart(2, '0')}:${String(item.minute).padStart(2, '0')}`;
+      const mention = roleNameById(item.mentionRoleId);
+      const preview = escapeHtml((item.content || '').slice(0, 160));
+      const status = item.enabled ? 'ativo' : 'enviado/off';
+      const err = item.lastError ? ` · erro: ${escapeHtml(item.lastError)}` : '';
+      return `
+        <article class="message-schedule-item" data-id="${escapeHtml(item.id)}">
+          <div class="message-schedule-item-meta">
+            <span>${escapeHtml(time)}</span>
+            <span>${escapeHtml(channelNameById(item.channelId))}</span>
+            <span>${status}</span>
+            ${mention ? `<span>@${escapeHtml(mention)}</span>` : ''}
+            ${err}
+          </div>
+          <div class="message-schedule-item-body">${preview || '<em>(vazia)</em>'}</div>
+          <div class="message-schedule-item-actions">
+            <button type="button" data-message-run="${escapeHtml(item.id)}">Enviar agora</button>
+            <button type="button" class="is-danger" data-message-delete="${escapeHtml(item.id)}">Remover</button>
+          </div>
+        </article>`;
+    })
+    .join('');
+}
+
+async function refreshMessageSchedules() {
+  const data = await api('/api/message-schedule');
+  renderMessageScheduleList(data.items || []);
+  els.messageStatus.textContent = formatMessageScheduleStatus(data.items || [], data.timezone || 'America/Sao_Paulo');
+  return data;
 }
 
 async function openMessageModal() {
   if (!state.guild) return;
   try {
-    const data = await api('/api/message-schedule');
-    const config = data.config || {};
     const today = new Date();
-
-    els.messageEnabled.checked = Boolean(config.enabled);
-    els.messageDate.value = config.date || toInputDate(today);
-    els.messageHour.value = Number.isFinite(config.hour) ? config.hour : 12;
-    els.messageMinute.value = Number.isFinite(config.minute) ? config.minute : 0;
-    els.messageContent.value = config.content || '';
-    renderMessageChannelPicker(config.channelId || state.activeChannelId);
-    els.messageStatus.textContent = formatMessageScheduleStatus(config, data.timezone || 'America/Sao_Paulo');
+    els.messageEnabled.checked = true;
+    els.messageDate.value = toInputDate(today);
+    els.messageHour.value = 12;
+    els.messageMinute.value = 0;
+    els.messageContent.value = '';
+    els.messageMentionRole.value = '';
+    renderMessageChannelPicker(state.activeChannelId);
+    await refreshMessageSchedules();
     els.messageModal.classList.remove('hidden');
   } catch (error) {
     showToast(error.message, true);
@@ -918,7 +973,6 @@ async function openMessageModal() {
 function closeMessageModal() {
   els.messageModal.classList.add('hidden');
   setButtonLoading(els.messageSubmit, false);
-  setButtonLoading(els.messageRunNow, false);
 }
 
 async function saveMessageSchedule(event) {
@@ -926,12 +980,13 @@ async function saveMessageSchedule(event) {
   setButtonLoading(els.messageSubmit, true);
   try {
     const data = await api('/api/message-schedule', {
-      method: 'PUT',
+      method: 'POST',
       body: JSON.stringify(buildMessageSchedulePayload()),
     });
-    els.messageStatus.textContent = formatMessageScheduleStatus(data.config, data.timezone);
-    showToast('Mensagem agendada salva.');
-    closeMessageModal();
+    renderMessageScheduleList(data.items || []);
+    els.messageStatus.textContent = formatMessageScheduleStatus(data.items || [], data.timezone);
+    els.messageContent.value = '';
+    showToast('Mensagem agendada adicionada.');
   } catch (error) {
     showToast(error.message, true);
   } finally {
@@ -939,21 +994,28 @@ async function saveMessageSchedule(event) {
   }
 }
 
-async function runMessageNow() {
-  setButtonLoading(els.messageRunNow, true);
+async function runMessageScheduleNow(id) {
   try {
-    await api('/api/message-schedule', {
-      method: 'PUT',
-      body: JSON.stringify(buildMessageSchedulePayload()),
-    });
-    const result = await api('/api/message-schedule/run', { method: 'POST' });
+    const result = await api(`/api/message-schedule/${id}/run`, { method: 'POST' });
+    renderMessageScheduleList(result.items || []);
+    els.messageStatus.textContent = formatMessageScheduleStatus(
+      result.items || [],
+      'America/Sao_Paulo',
+    );
     showToast(`Mensagem enviada em #${result.channelName}.`);
-    const data = await api('/api/message-schedule');
-    els.messageStatus.textContent = formatMessageScheduleStatus(data.config, data.timezone);
   } catch (error) {
     showToast(error.message, true);
-  } finally {
-    setButtonLoading(els.messageRunNow, false);
+  }
+}
+
+async function deleteMessageScheduleItem(id) {
+  try {
+    const data = await api(`/api/message-schedule/${id}`, { method: 'DELETE' });
+    renderMessageScheduleList(data.items || []);
+    els.messageStatus.textContent = formatMessageScheduleStatus(data.items || [], data.timezone);
+    showToast('Agendamento removido.');
+  } catch (error) {
+    showToast(error.message, true);
   }
 }
 
@@ -1158,9 +1220,17 @@ els.boatosSources.addEventListener('change', (event) => {
 
 els.messageBtn.addEventListener('click', openMessageModal);
 els.messageForm.addEventListener('submit', saveMessageSchedule);
-els.messageRunNow.addEventListener('click', runMessageNow);
 els.messageModal.addEventListener('click', (event) => {
   if (event.target.closest('[data-close-message]')) closeMessageModal();
+});
+els.messageList.addEventListener('click', (event) => {
+  const runId = event.target.closest('[data-message-run]')?.getAttribute('data-message-run');
+  if (runId) {
+    runMessageScheduleNow(runId);
+    return;
+  }
+  const deleteId = event.target.closest('[data-message-delete]')?.getAttribute('data-message-delete');
+  if (deleteId) deleteMessageScheduleItem(deleteId);
 });
 
 document.addEventListener('keydown', (event) => {

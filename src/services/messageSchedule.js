@@ -2,106 +2,42 @@ const { getDiscordGuildId } = require('../constants/discord');
 const { TIME_ZONE, getSaoPauloParts } = require('./exportSchedule');
 const MessageSchedule = require('../models/MessageSchedule');
 
-const DEFAULT_MESSAGE_SCHEDULE = {
-  enabled: false,
-  channelId: null,
-  content: '',
-  date: null,
-  hour: 0,
-  minute: 0,
-  lastRunKey: null,
-  lastSentAt: null,
-  lastError: null,
-};
-
-let cachedConfig = null;
 let tickTimer = null;
 
-function toPublicConfig(doc) {
-  if (!doc) return { ...DEFAULT_MESSAGE_SCHEDULE };
-
+function toPublicItem(doc) {
+  if (!doc) return null;
   return {
+    id: String(doc._id),
     enabled: Boolean(doc.enabled),
     channelId: doc.channelId ? String(doc.channelId) : null,
     content: doc.content != null ? String(doc.content) : '',
+    mentionRoleId: doc.mentionRoleId ? String(doc.mentionRoleId) : null,
     date: doc.date ? String(doc.date) : null,
     hour: Number.isFinite(Number(doc.hour)) ? Number(doc.hour) : 0,
     minute: Number.isFinite(Number(doc.minute)) ? Number(doc.minute) : 0,
     lastRunKey: doc.lastRunKey ?? null,
     lastSentAt: doc.lastSentAt ? new Date(doc.lastSentAt).toISOString() : null,
     lastError: doc.lastError ?? null,
+    createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
   };
 }
 
-function normalizeConfig(next = {}, base = cachedConfig || DEFAULT_MESSAGE_SCHEDULE) {
-  return {
-    ...DEFAULT_MESSAGE_SCHEDULE,
-    ...base,
-    ...next,
-    enabled: Boolean(next.enabled ?? base.enabled),
-    channelId: (next.channelId ?? base.channelId) ? String(next.channelId ?? base.channelId) : null,
-    content: String(next.content ?? base.content ?? ''),
-    date: (next.date ?? base.date) ? String(next.date ?? base.date) : null,
-    hour: Math.min(23, Math.max(0, Number(next.hour ?? base.hour ?? 0))),
-    minute: Math.min(59, Math.max(0, Number(next.minute ?? base.minute ?? 0))),
-    lastRunKey: next.lastRunKey !== undefined ? next.lastRunKey : base.lastRunKey ?? null,
-    lastSentAt: next.lastSentAt !== undefined ? next.lastSentAt : base.lastSentAt ?? null,
-    lastError: next.lastError !== undefined ? next.lastError : base.lastError ?? null,
-  };
-}
-
-async function loadMessageSchedule() {
-  const guildId = getDiscordGuildId();
-  try {
-    const doc = await MessageSchedule.findOne({ guildId }).lean();
-    cachedConfig = toPublicConfig(doc);
-    return cachedConfig;
-  } catch (error) {
-    console.error('[Corvo] Falha ao ler mensagem agendada no MongoDB:', error.message ?? error);
-    cachedConfig = { ...DEFAULT_MESSAGE_SCHEDULE };
-    return cachedConfig;
-  }
-}
-
-async function saveMessageSchedule(next) {
-  const guildId = getDiscordGuildId();
-  const config = normalizeConfig(next);
-
-  const doc = await MessageSchedule.findOneAndUpdate(
-    { guildId },
-    {
-      $set: {
-        guildId,
-        enabled: config.enabled,
-        channelId: config.channelId,
-        content: config.content,
-        date: config.date,
-        hour: config.hour,
-        minute: config.minute,
-        lastRunKey: config.lastRunKey,
-        lastSentAt: config.lastSentAt ? new Date(config.lastSentAt) : null,
-        lastError: config.lastError,
-      },
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  ).lean();
-
-  cachedConfig = toPublicConfig(doc);
-  return cachedConfig;
-}
-
-function validateMessageScheduleInput(body) {
+function validateMessageScheduleInput(body, { requireEnabled = false } = {}) {
   if (!body || typeof body !== 'object') {
     throw Object.assign(new Error('Payload inválido.'), { status: 400 });
   }
 
-  const enabled = Boolean(body.enabled);
+  const enabled = body.enabled === undefined ? true : Boolean(body.enabled);
   const channelId = body.channelId ? String(body.channelId) : null;
   const content = body.content != null ? String(body.content) : '';
+  const mentionRoleId = body.mentionRoleId ? String(body.mentionRoleId) : null;
   const date = body.date ? String(body.date).trim() : null;
   const hour = Number(body.hour);
   const minute = Number(body.minute);
 
+  if (requireEnabled && !enabled) {
+    throw Object.assign(new Error('Ative o agendamento para salvar.'), { status: 400 });
+  }
   if (!channelId) {
     throw Object.assign(new Error('Selecione o canal de destino.'), { status: 400 });
   }
@@ -125,101 +61,208 @@ function validateMessageScheduleInput(body) {
     enabled,
     channelId,
     content,
+    mentionRoleId,
     date,
     hour,
     minute,
   };
 }
 
-async function sendScheduledMessage(client, { manual = false } = {}) {
-  const config = await loadMessageSchedule();
-  if (!manual && !config.enabled) return null;
+async function listMessageSchedules() {
+  const guildId = getDiscordGuildId();
+  const docs = await MessageSchedule.find({ guildId }).sort({ date: 1, hour: 1, minute: 1, createdAt: 1 }).lean();
+  return docs.map(toPublicItem).filter(Boolean);
+}
 
-  const content = String(config.content || '').trim();
-  if (!config.channelId || !content) {
+async function getMessageScheduleById(id) {
+  const guildId = getDiscordGuildId();
+  const doc = await MessageSchedule.findOne({ _id: id, guildId }).lean();
+  if (!doc) {
+    throw Object.assign(new Error('Agendamento não encontrado.'), { status: 404 });
+  }
+  return toPublicItem(doc);
+}
+
+async function createMessageSchedule(body) {
+  const guildId = getDiscordGuildId();
+  const validated = validateMessageScheduleInput(body);
+
+  const doc = await MessageSchedule.create({
+    guildId,
+    ...validated,
+    lastRunKey: null,
+    lastSentAt: null,
+    lastError: null,
+  });
+
+  return toPublicItem(doc.toObject());
+}
+
+async function updateMessageSchedule(id, body) {
+  const guildId = getDiscordGuildId();
+  const validated = validateMessageScheduleInput(body);
+
+  const doc = await MessageSchedule.findOneAndUpdate(
+    { _id: id, guildId },
+    {
+      $set: {
+        enabled: validated.enabled,
+        channelId: validated.channelId,
+        content: validated.content,
+        mentionRoleId: validated.mentionRoleId,
+        date: validated.date,
+        hour: validated.hour,
+        minute: validated.minute,
+      },
+    },
+    { new: true },
+  ).lean();
+
+  if (!doc) {
+    throw Object.assign(new Error('Agendamento não encontrado.'), { status: 404 });
+  }
+
+  return toPublicItem(doc);
+}
+
+async function deleteMessageSchedule(id) {
+  const guildId = getDiscordGuildId();
+  const doc = await MessageSchedule.findOneAndDelete({ _id: id, guildId }).lean();
+  if (!doc) {
+    throw Object.assign(new Error('Agendamento não encontrado.'), { status: 404 });
+  }
+  return { ok: true, id: String(doc._id) };
+}
+
+async function sendMentionIfNeeded(channel, guild, mentionRoleId) {
+  if (!mentionRoleId) return 0;
+
+  const roleId = String(mentionRoleId);
+  const isEveryone = roleId === guild.id;
+  if (isEveryone) {
+    await channel.send({
+      content: '@everyone',
+      allowedMentions: { parse: ['everyone'] },
+    });
+    return 1;
+  }
+
+  const role = await guild.roles.fetch(roleId).catch(() => null);
+  if (!role) {
+    throw new Error('Cargo de menção inválido ou inexistente.');
+  }
+  await channel.send({
+    content: `<@&${role.id}>`,
+    allowedMentions: { roles: [role.id] },
+  });
+  return 1;
+}
+
+async function sendScheduledMessageById(client, id, { manual = false } = {}) {
+  const guildId = getDiscordGuildId();
+  const doc = await MessageSchedule.findOne({ _id: id, guildId });
+  if (!doc) {
+    throw Object.assign(new Error('Agendamento não encontrado.'), { status: 404 });
+  }
+
+  if (!manual && !doc.enabled) return null;
+
+  const content = String(doc.content || '').trim();
+  if (!doc.channelId || !content) {
     throw Object.assign(new Error('Canal e mensagem são obrigatórios.'), { status: 400 });
   }
 
-  const guildId = getDiscordGuildId();
-  const channel = await client.channels.fetch(config.channelId).catch(() => null);
+  const channel = await client.channels.fetch(doc.channelId).catch(() => null);
   if (!channel || channel.guildId !== guildId || !channel.isTextBased?.()) {
     throw Object.assign(new Error('Canal de destino inválido ou inacessível.'), { status: 400 });
   }
 
+  const guild = channel.guild;
+
   try {
+    await sendMentionIfNeeded(channel, guild, doc.mentionRoleId);
     await channel.send({ content: content.slice(0, 2000) });
 
     const nowParts = getSaoPauloParts();
-    await saveMessageSchedule({
-      ...config,
-      enabled: manual ? config.enabled : false,
-      lastRunKey: nowParts.runKey,
-      lastSentAt: new Date().toISOString(),
-      lastError: null,
-    });
+    doc.lastRunKey = nowParts.runKey;
+    doc.lastSentAt = new Date();
+    doc.lastError = null;
+    if (!manual) doc.enabled = false;
+    await doc.save();
 
     console.log(
-      `[Corvo] Mensagem ${manual ? 'manual' : 'agendada'} enviada para #${channel.name}.`,
+      `[Corvo] Mensagem ${manual ? 'manual' : 'agendada'} (${doc._id}) enviada para #${channel.name}.`,
     );
 
     return {
       ok: true,
+      id: String(doc._id),
       channelId: channel.id,
       channelName: channel.name,
       manual: Boolean(manual),
+      item: toPublicItem(doc.toObject()),
     };
   } catch (error) {
-    await saveMessageSchedule({
-      ...(await loadMessageSchedule()),
-      lastError: error.message ?? String(error),
-    });
+    doc.lastError = error.message ?? String(error);
+    await doc.save().catch(() => null);
     throw error;
   }
 }
 
-function matchesScheduleSlot(config, now) {
-  if (!config.date) return false;
-  const [year, month, day] = config.date.split('-');
+function matchesScheduleSlot(item, now) {
+  if (!item.date) return false;
+  const [year, month, day] = item.date.split('-');
   return (
     now.year === year &&
     now.month === month &&
     now.day === day &&
-    now.hour === config.hour &&
-    now.minute === config.minute
+    now.hour === item.hour &&
+    now.minute === item.minute
   );
 }
 
 async function tickMessageSchedule(client) {
   if (!client?.isReady?.()) return;
 
-  const config = await loadMessageSchedule();
-  if (!config.enabled) return;
-
+  const guildId = getDiscordGuildId();
   const now = getSaoPauloParts();
-  if (!matchesScheduleSlot(config, now)) return;
-  if (config.lastRunKey === now.runKey) return;
+  const docs = await MessageSchedule.find({ guildId, enabled: true }).lean();
 
-  try {
-    await sendScheduledMessage(client, { manual: false });
-  } catch (error) {
-    console.error('[Corvo] Falha no envio da mensagem agendada:', error.message ?? error);
+  for (const doc of docs) {
+    const item = toPublicItem(doc);
+    if (!matchesScheduleSlot(item, now)) continue;
+    if (item.lastRunKey === now.runKey) continue;
+
+    try {
+      await sendScheduledMessageById(client, item.id, { manual: false });
+    } catch (error) {
+      console.error(`[Corvo] Falha no envio da mensagem agendada ${item.id}:`, error.message ?? error);
+    }
   }
 }
 
 async function startMessageScheduler(client) {
-  await loadMessageSchedule();
+  try {
+    await MessageSchedule.syncIndexes();
+  } catch (error) {
+    console.warn('[Corvo] syncIndexes MessageSchedule:', error.message ?? error);
+  }
+
   if (tickTimer) clearInterval(tickTimer);
   tickTimer = setInterval(() => {
     void tickMessageSchedule(client);
   }, 20_000);
-  console.log('[Corvo] Agendador de mensagem pontual ativo (MongoDB + America/Sao_Paulo).');
+  console.log('[Corvo] Agendador de mensagens pontuais ativo (MongoDB + America/Sao_Paulo).');
 }
 
 module.exports = {
   TIME_ZONE,
-  loadMessageSchedule,
-  saveMessageSchedule,
+  listMessageSchedules,
+  getMessageScheduleById,
+  createMessageSchedule,
+  updateMessageSchedule,
+  deleteMessageSchedule,
   validateMessageScheduleInput,
-  sendScheduledMessage,
+  sendScheduledMessageById,
   startMessageScheduler,
 };

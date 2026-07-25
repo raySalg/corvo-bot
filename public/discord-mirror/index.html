@@ -387,24 +387,40 @@
 
     <div id="message-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="message-title">
       <div class="modal-backdrop" data-close-message></div>
-      <div class="modal-card">
+      <div class="modal-card modal-card-wide">
         <header class="modal-header">
-          <h3 id="message-title">Agendar mensagem</h3>
+          <h3 id="message-title">Agendar mensagens</h3>
           <button type="button" class="modal-close" data-close-message aria-label="Fechar">×</button>
         </header>
         <p class="modal-subtitle">
-          Envie uma mensagem pontual em um canal (fuso America/Sao_Paulo). Após o envio agendado, o agendamento
-          desativa sozinho.
+          Agende várias mensagens pontuais (fuso America/Sao_Paulo). Cada envio agendado desativa só aquele item.
+          Opcionalmente mencione um cargo antes do texto.
         </p>
+
+        <section class="schedule-section">
+          <h4 class="schedule-section-title">Agendamentos</h4>
+          <div id="message-list" class="message-schedule-list"></div>
+          <p id="message-status" class="modal-note"></p>
+        </section>
+
         <form id="message-form" class="modal-form">
+          <h4 class="schedule-section-title">Nova mensagem</h4>
+
           <label class="toggle-row">
-            <input id="message-enabled" type="checkbox" />
-            <span>Ativar envio agendado</span>
+            <input id="message-enabled" type="checkbox" checked />
+            <span>Ativar este agendamento</span>
           </label>
 
           <label class="field">
             <span>Canal</span>
             <select id="message-channel" required></select>
+          </label>
+
+          <label class="field">
+            <span>Cargo para mencionar (opcional)</span>
+            <select id="message-mention-role">
+              <option value="">Nenhum</option>
+            </select>
           </label>
 
           <div class="schedule-time-row">
@@ -428,20 +444,17 @@
             <span>Mensagem</span>
             <textarea
               id="message-content"
-              rows="5"
+              rows="4"
               maxlength="2000"
               placeholder="Texto que o bot vai enviar no canal…"
               required
             ></textarea>
           </label>
 
-          <p id="message-status" class="modal-note"></p>
-
           <div class="modal-actions modal-actions-wrap">
-            <button type="button" id="message-run-now" class="btn-secondary">Enviar agora</button>
-            <button type="button" class="btn-secondary" data-close-message>Cancelar</button>
+            <button type="button" class="btn-secondary" data-close-message>Fechar</button>
             <button type="submit" id="message-submit" class="btn-primary">
-              <span class="btn-label">Salvar</span>
+              <span class="btn-label">Adicionar</span>
               <span class="btn-spinner" aria-hidden="true"></span>
             </button>
           </div>

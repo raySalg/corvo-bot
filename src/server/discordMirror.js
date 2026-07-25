@@ -19,10 +19,11 @@ const {
   runBoatosAnalysis,
 } = require('../services/boatosSchedule');
 const {
-  loadMessageSchedule,
-  saveMessageSchedule,
-  validateMessageScheduleInput,
-  sendScheduledMessage,
+  listMessageSchedules,
+  createMessageSchedule,
+  updateMessageSchedule,
+  deleteMessageSchedule,
+  sendScheduledMessageById,
 } = require('../services/messageSchedule');
 
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public', 'discord-mirror');
@@ -641,37 +642,58 @@ function createDiscordMirrorRouter(client) {
 
   router.get('/api/message-schedule', async (_req, res) => {
     try {
-      const config = await loadMessageSchedule();
+      const items = await listMessageSchedules();
       res.json({
         timezone: TIME_ZONE,
-        config,
+        items,
         storage: 'mongodb',
       });
     } catch (error) {
-      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao carregar mensagem agendada.' });
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao carregar mensagens agendadas.' });
     }
   });
 
-  router.put('/api/message-schedule', async (req, res) => {
+  router.post('/api/message-schedule', async (req, res) => {
     try {
-      const validated = validateMessageScheduleInput(req.body || {});
-      const config = await saveMessageSchedule(validated);
-      res.json({ timezone: TIME_ZONE, config, storage: 'mongodb' });
+      const item = await createMessageSchedule(req.body || {});
+      const items = await listMessageSchedules();
+      res.status(201).json({ timezone: TIME_ZONE, item, items, storage: 'mongodb' });
     } catch (error) {
-      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao salvar mensagem agendada.' });
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao criar mensagem agendada.' });
     }
   });
 
-  router.post('/api/message-schedule/run', async (_req, res) => {
+  router.put('/api/message-schedule/:id', async (req, res) => {
+    try {
+      const item = await updateMessageSchedule(req.params.id, req.body || {});
+      const items = await listMessageSchedules();
+      res.json({ timezone: TIME_ZONE, item, items, storage: 'mongodb' });
+    } catch (error) {
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao atualizar mensagem agendada.' });
+    }
+  });
+
+  router.delete('/api/message-schedule/:id', async (req, res) => {
+    try {
+      await deleteMessageSchedule(req.params.id);
+      const items = await listMessageSchedules();
+      res.json({ timezone: TIME_ZONE, items, storage: 'mongodb' });
+    } catch (error) {
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao remover mensagem agendada.' });
+    }
+  });
+
+  router.post('/api/message-schedule/:id/run', async (req, res) => {
     try {
       if (!client?.isReady?.()) {
         res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
         return;
       }
-      const result = await sendScheduledMessage(client, { manual: true });
-      res.json(result);
+      const result = await sendScheduledMessageById(client, req.params.id, { manual: true });
+      const items = await listMessageSchedules();
+      res.json({ ...result, items });
     } catch (error) {
-      console.error('[Corvo] POST /api/message-schedule/run:', error);
+      console.error('[Corvo] POST /api/message-schedule/:id/run:', error);
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao enviar mensagem.' });
     }
   });
