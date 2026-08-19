@@ -48,7 +48,7 @@ attachDiscordClient(client);
 const commands = loadCommands();
 
 client.once(Events.ClientReady, (readyClient) => {
-  console.log(`[Corvo] ${BOT_NAME} despertou como ${readyClient.user.tag}`);
+  console.log(`[Corvo] ${BOT_NAME} conectado como ${readyClient.user.tag}`);
   console.log(`[Corvo] Application ID: ${readyClient.application.id}`);
   console.log(`[Corvo] ${commands.size} comandos carregados em memória.`);
   console.log(

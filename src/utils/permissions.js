@@ -2,7 +2,7 @@ const { PermissionFlagsBits } = require('discord.js');
 const { sendEphemeral } = require('./interactionReply');
 
 const ACCESS_DENIED_MESSAGE =
-  '### Acesso negado\nApenas **administradores** do reino podem usar este comando.';
+  '### Acesso negado\nApenas **administradores** do servidor podem usar este comando.';
 
 function memberIsAdmin(member) {
   if (!member?.permissions) return false;

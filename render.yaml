@@ -14,6 +14,6 @@ services:
       - key: DISCORD_PUBLIC_KEY
         sync: false
       - key: DISCORD_GUILD_ID
-        value: "1466080517421268992"
+        value: "1535764009515491458"
       - key: MONGODB_URI
         sync: false
