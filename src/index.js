@@ -32,7 +32,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`[Corvo] Token embutido mid=${tokenMid} (se o Render mostrar outro mid, o deploy está desatualizado).`);
+console.log(`[Corvo] Token mid=${tokenMid} (definido via DISCORD_TOKEN).`);
 
 const client = new Client({
   intents: [
@@ -138,7 +138,7 @@ async function start() {
 
   markDiscordLoginStart();
   setStartupPhase('discord_token_check');
-  console.log('[Corvo] Validando token embutido via API REST...');
+  console.log('[Corvo] Validando DISCORD_TOKEN via API REST...');
 
   try {
     const botUser = await validateBotToken(token);

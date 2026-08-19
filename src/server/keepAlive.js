@@ -1,12 +1,16 @@
 const express = require('express');
 const { BOT_NAME } = require('../constants/bot');
 const { getDiscordStatus } = require('../botState');
-const { getDiscordPublicKey, DISCORD_TOKEN } = require('../constants/discord');
+const { getDiscordPublicKey, getDiscordToken } = require('../constants/discord');
 const { createInteractionsHttpHandler } = require('./interactionsHttp');
 const { mountDiscordMirror } = require('./discordMirror');
 
-const TOKEN_MID = DISCORD_TOKEN.split('.')[1] || '?';
-const BUILD_MARK = 'token-mid-v2';
+const BUILD_MARK = 'env-token-v1';
+
+function tokenMidFromEnv() {
+  const token = getDiscordToken();
+  return token ? token.split('.')[1] || '?' : null;
+}
 
 function startKeepAliveServer({ client, commands } = {}) {
   const app = express();
@@ -35,10 +39,10 @@ function startKeepAliveServer({ client, commands } = {}) {
     if (!discordStatus.discordReady) {
       if (discordStatus.startupPhase === 'discord_login_failed' || discordStatus.lastDiscordError?.includes('rejeitado')) {
         hint =
-          'Token inválido neste deploy. Faça Manual Deploy no Render, apague a env DISCORD_TOKEN se existir, e confira se /health mostra tokenMid=Gmc_Ya.';
+          'Token inválido neste deploy. Confira DISCORD_TOKEN no Render (Developer Portal → Bot → Reset Token se necessário) e faça Manual Deploy.';
       } else if (!discordStatus.tokenRestOk && discordStatus.startupPhase === 'discord_login_failed') {
         hint =
-          'Token embutido rejeitado. Developer Portal → Bot → Reset Token → atualize src/constants/discord.js e redeploy.';
+          'DISCORD_TOKEN rejeitado. Developer Portal → Bot → Reset Token → atualize a variável no Render e redeploy.';
       } else if (discordStatus.tokenRestOk && discordStatus.loginWaitSeconds > 45) {
         hint =
           'Token REST ok, mas Gateway WebSocket travou. Tente Manual Deploy no Render.';
@@ -54,8 +58,8 @@ function startKeepAliveServer({ client, commands } = {}) {
         ? 'Estou vivo!'
         : `HTTP ok — fase: ${discordStatus.startupPhase}`,
       interactionsEndpoint: hasPublicKey,
-      tokenSource: 'embedded',
-      tokenMid: TOKEN_MID,
+      tokenSource: 'env',
+      tokenMid: tokenMidFromEnv(),
       buildMark: BUILD_MARK,
       hint,
       ...discordStatus,

@@ -50,7 +50,7 @@ cp .env.example .env
 
 | Variável | Descrição |
 |----------|-----------|
-| `DISCORD_TOKEN` | Token do bot (opcional se já estiver embutido no código) |
+| `DISCORD_TOKEN` | Token do bot (obrigatório) |
 | `DISCORD_CLIENT_ID` | Application ID |
 | `DISCORD_GUILD_ID` | ID do servidor espelhado / comandos slash |
 | `DISCORD_PUBLIC_KEY` | Public Key (Interactions Endpoint) |
