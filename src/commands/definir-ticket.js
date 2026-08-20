@@ -13,7 +13,6 @@ const { randomEmbedColor, parseImageUrl } = require('../utils/embed');
 
 const COMMAND_PREFIX = 'definir-ticket';
 const OPEN_PREFIX = `${COMMAND_PREFIX}:open:`;
-const CLOSE_PREFIX = `${COMMAND_PREFIX}:close:`;
 const ARCHIVE_PREFIX = `${COMMAND_PREFIX}:archive:`;
 const TICKET_OPEN_PREFIX = '🎫·';
 const TICKET_CLOSED_PREFIX = '📦·';
@@ -205,10 +204,6 @@ function buildOpenButton(roleId, label) {
 function buildTicketControls(threadId, roleId) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`${CLOSE_PREFIX}${threadId}:${roleId}`)
-      .setLabel('Fechar ticket')
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
       .setCustomId(`${ARCHIVE_PREFIX}${threadId}:${roleId}`)
       .setLabel('Arquivar')
       .setStyle(ButtonStyle.Secondary),
@@ -255,7 +250,7 @@ async function handleOpenTicket(interaction, roleId) {
   if (existing) {
     await sendEphemeral(
       interaction,
-      `### Ticket já existente\nVocê já tem um ticket: ${existing}. Peça para a equipe **fechar** (excluir) o ticket antes de abrir outro.`,
+      `### Ticket já existente\nVocê já tem um ticket: ${existing}. Peça para a equipe **arquivar** o ticket antes de abrir outro.`,
     );
     return;
   }
@@ -311,30 +306,6 @@ async function handleOpenTicket(interaction, roleId) {
   await sendEphemeral(interaction, `### Ticket aberto\nSeu ticket foi criado: ${thread}`);
 }
 
-async function handleCloseTicket(interaction, threadId, roleId) {
-  if (!canManageTicket(interaction, roleId)) {
-    await sendEphemeral(
-      interaction,
-      '### Acesso negado\nApenas administradores ou membros do cargo de suporte podem fechar tickets.',
-    );
-    return;
-  }
-
-  const thread = await interaction.client.channels.fetch(threadId).catch(() => null);
-  if (!thread?.isThread?.()) {
-    await sendEphemeral(interaction, '### Ticket indisponível\nEste tópico não existe mais.');
-    return;
-  }
-
-  try {
-    await thread.delete(`Ticket fechado por ${interaction.user.tag}`);
-    await sendEphemeral(interaction, '### Ticket fechado\nO tópico foi removido.');
-  } catch (error) {
-    console.error('[Corvo] Falha ao fechar ticket:', error);
-    await sendEphemeral(interaction, '### Erro\nNão consegui fechar este ticket. Verifique minhas permissões.');
-  }
-}
-
 async function handleArchiveTicket(interaction, threadId, roleId) {
   if (!canManageTicket(interaction, roleId)) {
     await sendEphemeral(
@@ -370,7 +341,7 @@ async function handleArchiveTicket(interaction, threadId, roleId) {
 
     await sendEphemeral(
       interaction,
-      '### Ticket arquivado\nTodos os membros foram removidos do tópico. Para abrir outro ticket, este tópico precisa ser **fechado** (excluído).',
+      '### Ticket arquivado\nTodos os membros foram removidos do tópico.',
     );
   } catch (error) {
     console.error('[Corvo] Falha ao arquivar ticket:', error);
@@ -457,12 +428,6 @@ module.exports = {
     const openRoleId = parseOpenRoleId(interaction.customId);
     if (openRoleId) {
       await handleOpenTicket(interaction, openRoleId);
-      return;
-    }
-
-    const close = parseThreadAction(interaction.customId, CLOSE_PREFIX);
-    if (close) {
-      await handleCloseTicket(interaction, close.threadId, close.roleId);
       return;
     }
 
