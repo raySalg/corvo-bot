@@ -36,4 +36,29 @@ function parseEmbedColor(input) {
   throw new Error('Use RGB (ex: 255,0,0) ou hexadecimal (ex: #FF0000).');
 }
 
-module.exports = { randomEmbedColor, parseEmbedColor };
+function parseImageUrl(input) {
+  const trimmed = String(input || '').trim();
+  if (!trimmed) {
+    throw new Error('Informe uma URL válida para a imagem.');
+  }
+
+  let candidate = trimmed;
+  if (!/^https?:\/\//i.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+
+  let url;
+  try {
+    url = new URL(candidate);
+  } catch {
+    throw new Error('Informe uma URL válida para a imagem (ex: https://exemplo.com/imagem.png).');
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('A imagem deve usar URL http ou https.');
+  }
+
+  return url.toString();
+}
+
+module.exports = { randomEmbedColor, parseEmbedColor, parseImageUrl };

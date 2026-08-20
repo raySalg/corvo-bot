@@ -9,7 +9,7 @@ const {
 } = require('discord.js');
 const { requireAdmin, isAdmin, ACCESS_DENIED_MESSAGE } = require('../utils/permissions');
 const { sendEphemeral } = require('../utils/interactionReply');
-const { randomEmbedColor, parseEmbedColor } = require('../utils/embed');
+const { randomEmbedColor, parseEmbedColor, parseImageUrl } = require('../utils/embed');
 const { publishEmbed } = require('../utils/publishMessage');
 
 const EMBED_MODAL_ID = 'embed:submit';
@@ -30,21 +30,6 @@ function parseEmbedModalId(customId) {
 function resolveEmbedColor(corInput) {
   if (!corInput?.trim()) return randomEmbedColor();
   return parseEmbedColor(corInput);
-}
-
-function parseImageUrl(input) {
-  let url;
-  try {
-    url = new URL(input);
-  } catch {
-    throw new Error('Informe uma URL válida para a imagem.');
-  }
-
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('A imagem deve usar URL http ou https.');
-  }
-
-  return url.toString();
 }
 
 function normalizeEmbedText(input) {

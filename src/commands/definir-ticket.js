@@ -9,7 +9,7 @@ const {
 } = require('discord.js');
 const { requireAdmin } = require('../utils/permissions');
 const { sendEphemeral } = require('../utils/interactionReply');
-const { randomEmbedColor } = require('../utils/embed');
+const { randomEmbedColor, parseImageUrl } = require('../utils/embed');
 
 const COMMAND_PREFIX = 'definir-ticket';
 const OPEN_PREFIX = `${COMMAND_PREFIX}:open:`;
@@ -46,8 +46,9 @@ function buildCommandData() {
     .addStringOption((option) =>
       option
         .setName('imagem')
-        .setDescription('URL da imagem do painel (opcional)')
-        .setRequired(false),
+        .setDescription('URL da imagem do painel — http(s) ou link direto (opcional)')
+        .setRequired(false)
+        .setMaxLength(2048),
     )
     .addStringOption((option) =>
       option
@@ -56,21 +57,6 @@ function buildCommandData() {
         .setRequired(false)
         .setMaxLength(80),
     );
-}
-
-function parseImageUrl(input) {
-  let url;
-  try {
-    url = new URL(input);
-  } catch {
-    throw new Error('Informe uma URL válida para a imagem.');
-  }
-
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('A imagem deve usar URL http ou https.');
-  }
-
-  return url.toString();
 }
 
 function sanitizeThreadSlug(username) {
