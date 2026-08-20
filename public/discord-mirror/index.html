@@ -21,17 +21,8 @@
             <h1 id="guild-name">Conectando…</h1>
           </div>
           <div class="server-header-actions">
-            <button type="button" id="schedule-btn" class="header-btn schedule-btn" title="Configurar exportação agendada">
-              Agendar
-            </button>
-            <button type="button" id="boatos-btn" class="header-btn schedule-btn" title="Configurar geração de boatos">
-              Boatos
-            </button>
-            <button type="button" id="message-btn" class="header-btn schedule-btn" title="Agendar mensagem">
-              Mensagem
-            </button>
-            <button type="button" id="climate-btn" class="header-btn schedule-btn" title="Clima automatizado com IA">
-              Clima
+            <button type="button" id="tools-btn" class="header-btn schedule-btn" title="Abrir ferramentas do espelho">
+              Ferramentas
             </button>
           </div>
         </header>
@@ -133,6 +124,38 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div id="tools-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="tools-title">
+      <div class="modal-backdrop" data-close-tools></div>
+      <div class="modal-card modal-card-wide">
+        <header class="modal-header">
+          <h3 id="tools-title">Ferramentas</h3>
+          <button type="button" class="modal-close" data-close-tools aria-label="Fechar">×</button>
+        </header>
+        <p class="modal-subtitle">Escolha uma opção para configurar agendamentos, automações e publicações do bot.</p>
+        <div class="tools-hub">
+          <button type="button" class="tools-hub-card" data-open-tool="schedule">
+            <strong>Agendar</strong>
+            <span>Exportação TXT e análise com IA em horários definidos.</span>
+          </button>
+          <button type="button" class="tools-hub-card" data-open-tool="boatos">
+            <strong>Boatos</strong>
+            <span>Geração automática de boatos com IA a partir dos canais.</span>
+          </button>
+          <button type="button" class="tools-hub-card" data-open-tool="message">
+            <strong>Mensagens</strong>
+            <span>Agendar mensagens pontuais com data, hora e menção de cargo.</span>
+          </button>
+          <button type="button" class="tools-hub-card" data-open-tool="climate">
+            <strong>Clima</strong>
+            <span>Relatórios de clima automatizados com transição gradual.</span>
+          </button>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" data-close-tools>Fechar</button>
+        </div>
       </div>
     </div>
 

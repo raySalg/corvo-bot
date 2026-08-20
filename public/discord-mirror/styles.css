@@ -92,6 +92,54 @@ input {
   gap: 8px;
 }
 
+.tools-hub {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.tools-hub-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-normal);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+.tools-hub-card strong {
+  font-size: 15px;
+  color: var(--text-strong);
+}
+
+.tools-hub-card span {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.tools-hub-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+  .tools-hub {
+    grid-template-columns: 1fr;
+  }
+}
+
 .schedule-btn {
   flex-shrink: 0;
 }

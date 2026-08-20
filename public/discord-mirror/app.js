@@ -39,7 +39,8 @@ const els = {
   exportFrom: document.getElementById('export-from'),
   exportTo: document.getElementById('export-to'),
   exportSubmit: document.getElementById('export-submit'),
-  scheduleBtn: document.getElementById('schedule-btn'),
+  toolsBtn: document.getElementById('tools-btn'),
+  toolsModal: document.getElementById('tools-modal'),
   scheduleModal: document.getElementById('schedule-modal'),
   scheduleForm: document.getElementById('schedule-form'),
   scheduleEnabled: document.getElementById('schedule-enabled'),
@@ -63,7 +64,6 @@ const els = {
   scheduleSubmit: document.getElementById('schedule-submit'),
   scheduleRunNow: document.getElementById('schedule-run-now'),
   scheduleRunAiNow: document.getElementById('schedule-run-ai-now'),
-  boatosBtn: document.getElementById('boatos-btn'),
   boatosModal: document.getElementById('boatos-modal'),
   boatosForm: document.getElementById('boatos-form'),
   boatosEnabled: document.getElementById('boatos-enabled'),
@@ -82,7 +82,6 @@ const els = {
   boatosStatus: document.getElementById('boatos-status'),
   boatosSubmit: document.getElementById('boatos-submit'),
   boatosRunNow: document.getElementById('boatos-run-now'),
-  messageBtn: document.getElementById('message-btn'),
   messageModal: document.getElementById('message-modal'),
   messageForm: document.getElementById('message-form'),
   messageList: document.getElementById('message-list'),
@@ -95,7 +94,6 @@ const els = {
   messageContent: document.getElementById('message-content'),
   messageStatus: document.getElementById('message-status'),
   messageSubmit: document.getElementById('message-submit'),
-  climateBtn: document.getElementById('climate-btn'),
   climateModal: document.getElementById('climate-modal'),
   climateForm: document.getElementById('climate-form'),
   climateEnabled: document.getElementById('climate-enabled'),
@@ -977,6 +975,22 @@ async function runClimateNow() {
   }
 }
 
+function openToolsModal() {
+  els.toolsModal.classList.remove('hidden');
+}
+
+function closeToolsModal() {
+  els.toolsModal.classList.add('hidden');
+}
+
+async function openToolFromHub(tool) {
+  closeToolsModal();
+  if (tool === 'schedule') await openScheduleModal();
+  else if (tool === 'boatos') await openBoatosModal();
+  else if (tool === 'message') await openMessageModal();
+  else if (tool === 'climate') await openClimateModal();
+}
+
 function formatMessageScheduleStatus(items, timezone) {
   const list = Array.isArray(items) ? items : [];
   const active = list.filter((item) => item.enabled).length;
@@ -1283,7 +1297,16 @@ els.exportModal.addEventListener('click', (event) => {
   if (event.target.closest('[data-close-modal]')) closeExportModal();
 });
 
-els.scheduleBtn.addEventListener('click', openScheduleModal);
+els.toolsBtn.addEventListener('click', openToolsModal);
+els.toolsModal.addEventListener('click', (event) => {
+  if (event.target.closest('[data-close-tools]')) {
+    closeToolsModal();
+    return;
+  }
+  const tool = event.target.closest('[data-open-tool]')?.getAttribute('data-open-tool');
+  if (tool) void openToolFromHub(tool);
+});
+
 els.scheduleForm.addEventListener('submit', saveSchedule);
 els.scheduleRunNow.addEventListener('click', runScheduleNow);
 els.scheduleRunAiNow.addEventListener('click', runAiScheduleNow);
@@ -1306,7 +1329,6 @@ els.scheduleSources.addEventListener('change', (event) => {
   if (channelCheck) syncGroupCheckbox(els.scheduleSources, channelCheck.dataset.groupId);
 });
 
-els.boatosBtn.addEventListener('click', openBoatosModal);
 els.boatosForm.addEventListener('submit', saveBoatos);
 els.boatosRunNow.addEventListener('click', runBoatosNow);
 els.boatosDateMode.addEventListener('change', syncBoatosDateModeUi);
@@ -1328,7 +1350,6 @@ els.boatosSources.addEventListener('change', (event) => {
   if (channelCheck) syncGroupCheckbox(els.boatosSources, channelCheck.dataset.groupId);
 });
 
-els.messageBtn.addEventListener('click', openMessageModal);
 els.messageForm.addEventListener('submit', saveMessageSchedule);
 els.messageModal.addEventListener('click', (event) => {
   if (event.target.closest('[data-close-message]')) closeMessageModal();
@@ -1343,7 +1364,6 @@ els.messageList.addEventListener('click', (event) => {
   if (deleteId) deleteMessageScheduleItem(deleteId);
 });
 
-els.climateBtn.addEventListener('click', openClimateModal);
 els.climateForm.addEventListener('submit', saveClimate);
 els.climateRunNow.addEventListener('click', runClimateNow);
 els.climateModal.addEventListener('click', (event) => {
@@ -1353,6 +1373,7 @@ els.climateModal.addEventListener('click', (event) => {
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
   if (!els.exportModal.classList.contains('hidden')) closeExportModal();
+  if (!els.toolsModal.classList.contains('hidden')) closeToolsModal();
   if (!els.scheduleModal.classList.contains('hidden')) closeScheduleModal();
   if (!els.boatosModal.classList.contains('hidden')) closeBoatosModal();
   if (!els.messageModal.classList.contains('hidden')) closeMessageModal();
