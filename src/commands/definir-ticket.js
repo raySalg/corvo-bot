@@ -73,12 +73,50 @@ function parseImageUrl(input) {
   return url.toString();
 }
 
-function openTicketThreadName(userId) {
-  return `${TICKET_OPEN_PREFIX}${userId}`.slice(0, 100);
+function sanitizeThreadSlug(username) {
+  return (
+    String(username || 'user')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-_]/g, '')
+      .slice(0, 32) || 'user'
+  );
 }
 
-function closedTicketThreadName(userId) {
-  return `${TICKET_CLOSED_PREFIX}${userId}`.slice(0, 100);
+function buildTicketThreadName(prefix, userId, username) {
+  const slug = sanitizeThreadSlug(username);
+  const suffix = `·${userId}`;
+  const maxSlugLen = Math.max(1, 100 - prefix.length - suffix.length);
+  return `${prefix}${slug.slice(0, maxSlugLen)}${suffix}`.slice(0, 100);
+}
+
+function openTicketThreadName(userId, username) {
+  return buildTicketThreadName(TICKET_OPEN_PREFIX, userId, username);
+}
+
+function closedTicketThreadName(userId, username) {
+  return buildTicketThreadName(TICKET_CLOSED_PREFIX, userId, username);
+}
+
+function isTicketForUser(thread, userId) {
+  const isTicket =
+    thread.name.startsWith(TICKET_OPEN_PREFIX) || thread.name.startsWith(TICKET_CLOSED_PREFIX);
+  if (!isTicket) return false;
+  return thread.name.endsWith(userId) || thread.name === `${TICKET_OPEN_PREFIX}${userId}`;
+}
+
+function parseTicketOwnerIdFromName(name) {
+  const match = name.match(/·(\d{17,20})$/);
+  return match?.[1] ?? null;
+}
+
+function parseTicketSlugFromName(name) {
+  const openMatch = name.match(/^🎫·(.+)·(\d{17,20})$/);
+  if (openMatch) return openMatch[1];
+  const closedMatch = name.match(/^📦·(.+)·(\d{17,20})$/);
+  if (closedMatch) return closedMatch[1];
+  return null;
 }
 
 function parseOpenRoleId(customId) {
@@ -132,15 +170,26 @@ function canManageTicket(interaction, staffRoleId) {
   return false;
 }
 
-async function findOpenTicketForUser(channel, userId) {
+async function findExistingTicketForUser(channel, userId) {
   const active = await channel.threads.fetchActive();
-  const targetName = openTicketThreadName(userId);
-
   for (const thread of active.threads.values()) {
-    if (thread.name === targetName) {
+    if (isTicketForUser(thread, userId)) {
       return thread;
     }
   }
+
+  let before;
+  do {
+    const archived = await channel.threads.fetchArchived({ before, limit: 100 });
+    for (const thread of archived.threads.values()) {
+      if (isTicketForUser(thread, userId)) {
+        return thread;
+      }
+    }
+
+    before = archived.threads.size > 0 ? archived.threads.last()?.id : undefined;
+    if (!archived.hasMore) break;
+  } while (before);
 
   return null;
 }
@@ -216,19 +265,20 @@ async function handleOpenTicket(interaction, roleId) {
     return;
   }
 
-  const existing = await findOpenTicketForUser(parentChannel, interaction.user.id);
+  const existing = await findExistingTicketForUser(parentChannel, interaction.user.id);
   if (existing) {
     await sendEphemeral(
       interaction,
-      `### Ticket já aberto\nVocê já tem um ticket ativo: ${existing}. Feche ou arquive-o antes de abrir outro.`,
+      `### Ticket já existente\nVocê já tem um ticket: ${existing}. Peça para a equipe **fechar** (excluir) o ticket antes de abrir outro.`,
     );
     return;
   }
 
   let thread;
+  const displayName = interaction.user.globalName || interaction.user.username;
   try {
     thread = await parentChannel.threads.create({
-      name: openTicketThreadName(interaction.user.id),
+      name: openTicketThreadName(interaction.user.id, displayName),
       type: resolveThreadType(parentChannel),
       invitable: false,
       reason: `Ticket aberto por ${interaction.user.tag}`,
@@ -314,8 +364,8 @@ async function handleArchiveTicket(interaction, threadId, roleId) {
     return;
   }
 
-  const ownerMatch = thread.name.match(/^🎫·(\d{17,20})$/);
-  const ownerId = ownerMatch?.[1] ?? null;
+  const ownerId = parseTicketOwnerIdFromName(thread.name);
+  const ownerSlug = parseTicketSlugFromName(thread.name);
 
   try {
     const members = await thread.members.fetch();
@@ -326,12 +376,15 @@ async function handleArchiveTicket(interaction, threadId, roleId) {
     }
 
     if (ownerId) {
-      await thread.setName(closedTicketThreadName(ownerId), 'Ticket arquivado');
+      await thread.setName(
+        closedTicketThreadName(ownerId, ownerSlug || 'user'),
+        'Ticket arquivado',
+      );
     }
 
     await sendEphemeral(
       interaction,
-      '### Ticket arquivado\nTodos os membros foram removidos do tópico. O usuário já pode abrir outro ticket.',
+      '### Ticket arquivado\nTodos os membros foram removidos do tópico. Para abrir outro ticket, este tópico precisa ser **fechado** (excluído).',
     );
   } catch (error) {
     console.error('[Corvo] Falha ao arquivar ticket:', error);
