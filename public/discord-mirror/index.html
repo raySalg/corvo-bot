@@ -30,6 +30,9 @@
             <button type="button" id="message-btn" class="header-btn schedule-btn" title="Agendar mensagem">
               Mensagem
             </button>
+            <button type="button" id="climate-btn" class="header-btn schedule-btn" title="Clima automatizado com IA">
+              Clima
+            </button>
           </div>
         </header>
         <nav id="channel-list" class="channel-list" aria-label="Canais"></nav>
@@ -455,6 +458,85 @@
             <button type="button" class="btn-secondary" data-close-message>Fechar</button>
             <button type="submit" id="message-submit" class="btn-primary">
               <span class="btn-label">Adicionar</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="climate-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="climate-title">
+      <div class="modal-backdrop" data-close-climate></div>
+      <div class="modal-card modal-card-wide">
+        <header class="modal-header">
+          <h3 id="climate-title">Clima automatizado (IA)</h3>
+          <button type="button" class="modal-close" data-close-climate aria-label="Fechar">×</button>
+        </header>
+        <p class="modal-subtitle">
+          Gera relatórios de clima no Discord com transição gradual a partir do clima anterior. Base climática:
+          Inglaterra (temperado oceânico). Fuso America/Sao_Paulo.
+        </p>
+        <form id="climate-form" class="modal-form">
+          <label class="toggle-row">
+            <input id="climate-enabled" type="checkbox" />
+            <span>Ativar envio automático de clima</span>
+          </label>
+
+          <label class="field">
+            <span>Canal de clima</span>
+            <select id="climate-destination"></select>
+          </label>
+
+          <label class="field">
+            <span>Temporada atual</span>
+            <select id="climate-season">
+              <option value="spring">Primavera</option>
+              <option value="summer">Verão</option>
+              <option value="autumn" selected>Outono</option>
+              <option value="winter">Inverno</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Instruções extras (adicionar ou remover do prompt)</span>
+            <textarea
+              id="climate-prompt-extra"
+              rows="4"
+              placeholder="Ex.: Enfatize neblina matinal. / Não mencione tempestades. / Inclua vento forte no litoral."
+            ></textarea>
+          </label>
+
+          <div class="schedule-time-row">
+            <label class="field">
+              <span>Hora</span>
+              <input id="climate-hour" type="number" min="0" max="23" value="8" required />
+            </label>
+            <label class="field">
+              <span>Minuto</span>
+              <input id="climate-minute" type="number" min="0" max="59" value="0" required />
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Dias da semana</span>
+            <div id="climate-days" class="days-picker">
+              <label><input type="checkbox" value="0" checked /> Dom</label>
+              <label><input type="checkbox" value="1" checked /> Seg</label>
+              <label><input type="checkbox" value="2" checked /> Ter</label>
+              <label><input type="checkbox" value="3" checked /> Qua</label>
+              <label><input type="checkbox" value="4" checked /> Qui</label>
+              <label><input type="checkbox" value="5" checked /> Sex</label>
+              <label><input type="checkbox" value="6" checked /> Sáb</label>
+            </div>
+          </label>
+
+          <p id="climate-status" class="modal-note"></p>
+
+          <div class="modal-actions modal-actions-wrap">
+            <button type="button" id="climate-run-now" class="btn-secondary">Gerar clima agora</button>
+            <button type="button" class="btn-secondary" data-close-climate>Cancelar</button>
+            <button type="submit" id="climate-submit" class="btn-primary">
+              <span class="btn-label">Salvar</span>
               <span class="btn-spinner" aria-hidden="true"></span>
             </button>
           </div>

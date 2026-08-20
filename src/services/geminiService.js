@@ -48,7 +48,7 @@ function isRetryableModelError(status, data) {
   return false;
 }
 
-async function generateWithModel(apiKey, model, { system, userContent }) {
+async function generateWithModel(apiKey, model, { system, userContent, temperature = 0.3 }) {
   const response = await fetch(getGeminiGenerateUrl(model), {
     method: 'POST',
     headers: {
@@ -66,7 +66,7 @@ async function generateWithModel(apiKey, model, { system, userContent }) {
         },
       ],
       generationConfig: {
-        temperature: 0.3,
+        temperature,
         maxOutputTokens: 8192,
       },
     }),
@@ -76,44 +76,11 @@ async function generateWithModel(apiKey, model, { system, userContent }) {
   return { response, data };
 }
 
-async function analyzeMessagesWithGemini({ prompt, messagesCorpus, meta = {} }) {
+async function callGeminiWithRetry({ system, userContent, temperature = 0.3 }) {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
     throw Object.assign(new Error('GEMINI_API_KEY não configurada.'), { status: 500 });
   }
-
-  const userPrompt = String(prompt || '').trim();
-  if (!userPrompt) {
-    throw Object.assign(new Error('Escreva um prompt para orientar a IA.'), { status: 400 });
-  }
-
-  const { text: corpus, truncated } = truncateMessagesCorpus(String(messagesCorpus || ''));
-  if (!corpus.trim()) {
-    throw Object.assign(new Error('Não há mensagens no período para analisar.'), { status: 400 });
-  }
-
-  const system = [
-    'Você analisa mensagens de canais/fóruns de um servidor Discord.',
-    'Siga rigorosamente as instruções do usuário sobre o que produzir (resumo, tópicos, decisões, riscos, etc.).',
-    'Responda em português do Brasil, de forma clara e organizada.',
-    'Não invente mensagens que não estejam no material fornecido.',
-    truncated ? 'Atenção: o material de mensagens foi truncado por tamanho.' : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const userContent = [
-    `Instruções do usuário:\n${userPrompt}`,
-    '',
-    meta.from && meta.to ? `Período das mensagens: ${meta.from} → ${meta.to}` : null,
-    meta.channelCount != null ? `Canais/tópicos analisados: ${meta.channelCount}` : null,
-    meta.messageCount != null ? `Total de mensagens no material: ${meta.messageCount}` : null,
-    '',
-    'Material (mensagens):',
-    corpus,
-  ]
-    .filter((line) => line != null)
-    .join('\n');
 
   const preferred = stickyModel || getGeminiModel();
   const chain = getGeminiModelChain(preferred);
@@ -126,7 +93,7 @@ async function analyzeMessagesWithGemini({ prompt, messagesCorpus, meta = {} }) 
     let data;
 
     try {
-      ({ response, data } = await generateWithModel(apiKey, model, { system, userContent }));
+      ({ response, data } = await generateWithModel(apiKey, model, { system, userContent, temperature }));
     } catch (error) {
       attempts.push({ model, ok: false, detail: error.message ?? String(error) });
       console.warn(`[Corvo] Gemini falha de rede em ${model}: ${error.message ?? error}`);
@@ -191,7 +158,6 @@ async function analyzeMessagesWithGemini({ prompt, messagesCorpus, meta = {} }) 
       model: data.modelVersion || model,
       requestedModel: model,
       projectId: getGeminiProjectId(),
-      truncatedInput: truncated,
       fallbackUsed: usedFallback,
       attempts,
     };
@@ -201,6 +167,124 @@ async function analyzeMessagesWithGemini({ prompt, messagesCorpus, meta = {} }) 
     lastError ||
     Object.assign(new Error('Nenhum modelo Gemini disponível (limites esgotados).'), { status: 502 })
   );
+}
+
+async function analyzeMessagesWithGemini({ prompt, messagesCorpus, meta = {} }) {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw Object.assign(new Error('GEMINI_API_KEY não configurada.'), { status: 500 });
+  }
+
+  const userPrompt = String(prompt || '').trim();
+  if (!userPrompt) {
+    throw Object.assign(new Error('Escreva um prompt para orientar a IA.'), { status: 400 });
+  }
+
+  const { text: corpus, truncated } = truncateMessagesCorpus(String(messagesCorpus || ''));
+  if (!corpus.trim()) {
+    throw Object.assign(new Error('Não há mensagens no período para analisar.'), { status: 400 });
+  }
+
+  const system = [
+    'Você analisa mensagens de canais/fóruns de um servidor Discord.',
+    'Siga rigorosamente as instruções do usuário sobre o que produzir (resumo, tópicos, decisões, riscos, etc.).',
+    'Responda em português do Brasil, de forma clara e organizada.',
+    'Não invente mensagens que não estejam no material fornecido.',
+    truncated ? 'Atenção: o material de mensagens foi truncado por tamanho.' : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const userContent = [
+    `Instruções do usuário:\n${userPrompt}`,
+    '',
+    meta.from && meta.to ? `Período das mensagens: ${meta.from} → ${meta.to}` : null,
+    meta.channelCount != null ? `Canais/tópicos analisados: ${meta.channelCount}` : null,
+    meta.messageCount != null ? `Total de mensagens no material: ${meta.messageCount}` : null,
+    '',
+    'Material (mensagens):',
+    corpus,
+  ]
+    .filter((line) => line != null)
+    .join('\n');
+
+  const result = await callGeminiWithRetry({ system, userContent });
+  return { ...result, truncatedInput: truncated };
+}
+
+const CLIMATE_TEMPLATE = `## [Título Principal da Regra ou Sistema]
+
+> [Texto descritivo com o objetivo geral do sistema, introdução ou conceito básico da regra. Serve para dar o tom e explicar o "porquê" daquilo existir.]
+
+## [Nome do Primeiro Subtópico]
+
+> [Explicação da primeira mecânica ou diretriz dentro dessa regra.]
+
+**[Palavra-chave ou Subtítulo Importante]:** [Complemento opcional da frase]
+
+* [Item ou critério 1]
+* [Item ou critério 2]
+* [Item ou critério 3]
+
+-# [Observação, exceção, punição ou detalhe técnico referente a este subtópico específico.]
+
+## [Temporada]
+
+> [Explicação breve do clima, se está chuvoso, temperado, nublado, céu aberto, etc.]
+
+**[Temperatura média]**`;
+
+const SEASON_LABELS = {
+  spring: 'Primavera',
+  summer: 'Verão',
+  autumn: 'Outono',
+  winter: 'Inverno',
+};
+
+function normalizeClimateSeason(value) {
+  const season = String(value || 'autumn').toLowerCase();
+  if (season === 'primavera') return 'spring';
+  if (season === 'verao' || season === 'verão') return 'summer';
+  if (season === 'outono') return 'autumn';
+  if (season === 'inverno') return 'winter';
+  if (['spring', 'summer', 'autumn', 'winter'].includes(season)) return season;
+  return 'autumn';
+}
+
+async function generateClimateWithGemini({ season, promptExtra, previousClimate, generatedAtLabel }) {
+  const normalizedSeason = normalizeClimateSeason(season);
+  const seasonLabel = SEASON_LABELS[normalizedSeason];
+
+  const system = [
+    'Você escreve relatórios de clima imersivos para um servidor de roleplay no Discord.',
+    'Baseie-se no clima temperado oceânico da Inglaterra: úmido, changeável, chuvas frequentes, invernos frios úmidos e verões raramente quentes.',
+    'A temporada selecionada impacta diretamente temperatura, vento, nebulosidade e precipitação.',
+    'Se houver clima anterior, faça transição GRADUAL e coerente — sem saltos bruscos de temperatura ou condição.',
+    'Responda em português do Brasil.',
+    'Use EXATAMENTE o molde Markdown abaixo, preenchendo os colchetes com conteúdo criativo e coerente.',
+    'Replique a estrutura de subtópico (##, >, **, *, -#) quantas vezes forem necessárias para descrever o clima do dia.',
+    'A seção ## [Temporada] deve usar o nome da temporada atual em português no título.',
+    'Inclua temperatura média realista em °C na linha **Temperatura média**.',
+    'Não inclua prefácio, explicação ou comentários fora do molde.',
+    '',
+    'Molde obrigatório:',
+    CLIMATE_TEMPLATE,
+  ].join('\n');
+
+  const userContent = [
+    `Temporada atual: ${seasonLabel} (${normalizedSeason}).`,
+    generatedAtLabel ? `Momento do relatório: ${generatedAtLabel}.` : null,
+    previousClimate?.trim()
+      ? `Clima anterior (use como base para transição gradual):\n${previousClimate.trim()}`
+      : 'Não há clima anterior registrado — inicie uma condição plausível para a estação.',
+    promptExtra?.trim() ? `Instruções extras do administrador:\n${promptExtra.trim()}` : null,
+    '',
+    'Gere o relatório de clima de hoje seguindo o molde.',
+  ]
+    .filter((line) => line != null)
+    .join('\n');
+
+  return callGeminiWithRetry({ system, userContent, temperature: 0.65 });
 }
 
 function splitDiscordContent(text, maxLen = 1900) {
@@ -251,6 +335,9 @@ async function sendAsDiscordMessages(channel, { header, content }) {
 
 module.exports = {
   analyzeMessagesWithGemini,
+  generateClimateWithGemini,
+  normalizeClimateSeason,
+  SEASON_LABELS,
   splitDiscordContent,
   sendAsDiscordMessages,
   truncateMessagesCorpus,

@@ -95,6 +95,19 @@ const els = {
   messageContent: document.getElementById('message-content'),
   messageStatus: document.getElementById('message-status'),
   messageSubmit: document.getElementById('message-submit'),
+  climateBtn: document.getElementById('climate-btn'),
+  climateModal: document.getElementById('climate-modal'),
+  climateForm: document.getElementById('climate-form'),
+  climateEnabled: document.getElementById('climate-enabled'),
+  climateDestination: document.getElementById('climate-destination'),
+  climateSeason: document.getElementById('climate-season'),
+  climatePromptExtra: document.getElementById('climate-prompt-extra'),
+  climateHour: document.getElementById('climate-hour'),
+  climateMinute: document.getElementById('climate-minute'),
+  climateDays: document.getElementById('climate-days'),
+  climateStatus: document.getElementById('climate-status'),
+  climateSubmit: document.getElementById('climate-submit'),
+  climateRunNow: document.getElementById('climate-run-now'),
 };
 
 let scrollLoadTimer = null;
@@ -867,6 +880,103 @@ async function runBoatosNow() {
   }
 }
 
+const CLIMATE_SEASON_LABELS = {
+  spring: 'Primavera',
+  summer: 'Verão',
+  autumn: 'Outono',
+  winter: 'Inverno',
+};
+
+function formatClimateStatus(config, timezone) {
+  if (!config) return `Fuso: ${timezone}`;
+  const time = `${String(config.hour).padStart(2, '0')}:${String(config.minute).padStart(2, '0')}`;
+  const last = config.lastRunAt ? new Date(config.lastRunAt).toLocaleString('pt-BR') : 'nunca';
+  const err = config.lastError ? ` · erro: ${config.lastError}` : '';
+  const season = CLIMATE_SEASON_LABELS[config.season] || config.season || '—';
+  return (
+    `Fuso ${timezone} · ${config.enabled ? 'Ativo' : 'Desativado'} · ` +
+    `Temporada ${season} · Envio ${time} (${dayLabels(config.daysOfWeek) || '—'}) · Última: ${last}${err}`
+  );
+}
+
+function renderClimatePicker(destinationId = null) {
+  if (!state.guild) return;
+  els.climateDestination.innerHTML = `<option value="">Selecione…</option>${channelSelectOptions(destinationId)}`;
+}
+
+function buildClimatePayload() {
+  return {
+    enabled: els.climateEnabled.checked,
+    destinationChannelId: els.climateDestination.value || null,
+    season: els.climateSeason.value || 'autumn',
+    promptExtra: els.climatePromptExtra.value || '',
+    hour: Number(els.climateHour.value),
+    minute: Number(els.climateMinute.value),
+    daysOfWeek: getSelectedDaysFrom(els.climateDays),
+  };
+}
+
+async function openClimateModal() {
+  if (!state.guild) return;
+  try {
+    const data = await api('/api/climate-schedule');
+    const config = data.config || {};
+
+    els.climateEnabled.checked = Boolean(config.enabled);
+    els.climateHour.value = Number.isFinite(config.hour) ? config.hour : 8;
+    els.climateMinute.value = Number.isFinite(config.minute) ? config.minute : 0;
+    els.climateSeason.value = config.season || 'autumn';
+    els.climatePromptExtra.value = config.promptExtra || '';
+    setSelectedDaysOn(els.climateDays, config.daysOfWeek || [0, 1, 2, 3, 4, 5, 6]);
+    renderClimatePicker(config.destinationChannelId);
+    els.climateStatus.textContent = formatClimateStatus(config, data.timezone || 'America/Sao_Paulo');
+    els.climateModal.classList.remove('hidden');
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+function closeClimateModal() {
+  els.climateModal.classList.add('hidden');
+  setButtonLoading(els.climateSubmit, false);
+  setButtonLoading(els.climateRunNow, false);
+}
+
+async function saveClimate(event) {
+  event.preventDefault();
+  setButtonLoading(els.climateSubmit, true);
+  try {
+    const data = await api('/api/climate-schedule', {
+      method: 'PUT',
+      body: JSON.stringify(buildClimatePayload()),
+    });
+    els.climateStatus.textContent = formatClimateStatus(data.config, data.timezone);
+    showToast('Configuração de clima salva.');
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    setButtonLoading(els.climateSubmit, false);
+  }
+}
+
+async function runClimateNow() {
+  setButtonLoading(els.climateRunNow, true);
+  try {
+    await api('/api/climate-schedule', {
+      method: 'PUT',
+      body: JSON.stringify(buildClimatePayload()),
+    });
+    const result = await api('/api/climate-schedule/run', { method: 'POST' });
+    showToast(`Clima enviado para #${result.destinationName} (${result.messageCount} msg).`);
+    const data = await api('/api/climate-schedule');
+    els.climateStatus.textContent = formatClimateStatus(data.config, data.timezone);
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    setButtonLoading(els.climateRunNow, false);
+  }
+}
+
 function formatMessageScheduleStatus(items, timezone) {
   const list = Array.isArray(items) ? items : [];
   const active = list.filter((item) => item.enabled).length;
@@ -1233,12 +1343,20 @@ els.messageList.addEventListener('click', (event) => {
   if (deleteId) deleteMessageScheduleItem(deleteId);
 });
 
+els.climateBtn.addEventListener('click', openClimateModal);
+els.climateForm.addEventListener('submit', saveClimate);
+els.climateRunNow.addEventListener('click', runClimateNow);
+els.climateModal.addEventListener('click', (event) => {
+  if (event.target.closest('[data-close-climate]')) closeClimateModal();
+});
+
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
   if (!els.exportModal.classList.contains('hidden')) closeExportModal();
   if (!els.scheduleModal.classList.contains('hidden')) closeScheduleModal();
   if (!els.boatosModal.classList.contains('hidden')) closeBoatosModal();
   if (!els.messageModal.classList.contains('hidden')) closeMessageModal();
+  if (!els.climateModal.classList.contains('hidden')) closeClimateModal();
 });
 
 els.messages.addEventListener('scroll', () => {

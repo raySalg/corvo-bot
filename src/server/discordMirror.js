@@ -25,6 +25,12 @@ const {
   deleteMessageSchedule,
   sendScheduledMessageById,
 } = require('../services/messageSchedule');
+const {
+  loadClimateConfig,
+  saveClimateConfig,
+  validateClimateInput,
+  runClimateReport,
+} = require('../services/climateSchedule');
 
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public', 'discord-mirror');
 
@@ -695,6 +701,44 @@ function createDiscordMirrorRouter(client) {
     } catch (error) {
       console.error('[Corvo] POST /api/message-schedule/:id/run:', error);
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao enviar mensagem.' });
+    }
+  });
+
+  router.get('/api/climate-schedule', async (_req, res) => {
+    try {
+      const config = await loadClimateConfig();
+      res.json({
+        timezone: TIME_ZONE,
+        config,
+        storage: 'mongodb',
+      });
+    } catch (error) {
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao carregar clima automatizado.' });
+    }
+  });
+
+  router.put('/api/climate-schedule', async (req, res) => {
+    try {
+      const validated = validateClimateInput(req.body || {});
+      const current = await loadClimateConfig();
+      const config = await saveClimateConfig({ ...current, ...validated });
+      res.json({ timezone: TIME_ZONE, config, storage: 'mongodb' });
+    } catch (error) {
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao salvar clima automatizado.' });
+    }
+  });
+
+  router.post('/api/climate-schedule/run', async (_req, res) => {
+    try {
+      if (!client?.isReady?.()) {
+        res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
+        return;
+      }
+      const result = await runClimateReport(client, { manual: true });
+      res.json(result);
+    } catch (error) {
+      console.error('[Corvo] POST /api/climate-schedule/run:', error);
+      res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao gerar clima.' });
     }
   });
 
