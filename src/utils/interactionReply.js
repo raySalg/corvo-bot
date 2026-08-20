@@ -7,7 +7,7 @@ const INTERACTION_FOLLOWUP_MS = 15 * 60 * 1000;
 const MODAL_COMMANDS = new Set(['embed']);
 
 /** Comandos longos que devem ficar só para quem executou. */
-const EPHEMERAL_DEFER_COMMANDS = new Set(['analisar-ia', 'autorole']);
+const EPHEMERAL_DEFER_COMMANDS = new Set(['analisar-ia', 'autorole', 'definir-ticket']);
 
 function ephemeralPayload(contentOrOptions) {
   if (typeof contentOrOptions === 'string') {
