@@ -46,6 +46,10 @@ input {
   font: inherit;
 }
 
+.hidden {
+  display: none !important;
+}
+
 .app {
   display: grid;
   grid-template-columns: 72px 240px minmax(0, 1fr) 240px;
@@ -456,6 +460,10 @@ input {
   padding: 6px;
   z-index: 50;
   animation: dropdownIn 160ms var(--ease);
+}
+
+.server-dropdown-menu.hidden {
+  display: none !important;
 }
 
 @keyframes dropdownIn {
