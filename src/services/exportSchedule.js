@@ -141,8 +141,9 @@ function normalizeConfig(next = {}, base = cachedConfig || DEFAULT_SCHEDULE) {
   };
 }
 
-async function loadScheduleConfig() {
-  const guildId = getDiscordGuildId();
+async function loadScheduleConfig(targetGuildId = null) {
+  const guildId = targetGuildId || getDiscordGuildId();
+  if (!guildId) return { ...DEFAULT_SCHEDULE };
   try {
     const doc = await ExportSchedule.findOne({ guildId }).lean();
     cachedConfig = toPublicConfig(doc);
@@ -154,8 +155,11 @@ async function loadScheduleConfig() {
   }
 }
 
-async function saveScheduleConfig(next) {
-  const guildId = getDiscordGuildId();
+async function saveScheduleConfig(next, targetGuildId = null) {
+  const guildId = targetGuildId || getDiscordGuildId();
+  if (!guildId) {
+    throw Object.assign(new Error('ID do servidor (guildId) é obrigatório para salvar o agendamento.'), { status: 400 });
+  }
   const config = normalizeConfig(next);
 
   const doc = await ExportSchedule.findOneAndUpdate(
@@ -304,8 +308,11 @@ function validateScheduleInput(body) {
   };
 }
 
-async function resolveGuild(client) {
-  const guildId = getDiscordGuildId();
+async function resolveGuild(client, targetGuildId = null) {
+  const guildId = targetGuildId || getDiscordGuildId() || client.guilds.cache.first()?.id;
+  if (!guildId) {
+    throw new Error('Nenhum servidor do Discord encontrado.');
+  }
   let guild = client.guilds.cache.get(guildId);
   if (!guild) guild = await client.guilds.fetch(guildId);
   return guild;
@@ -338,8 +345,8 @@ async function resolveChannelsForExport(client, guild, sourceChannelIds) {
   return [...resolved.values()];
 }
 
-async function buildScheduledExport(client, config) {
-  const guild = await resolveGuild(client);
+async function buildScheduledExport(client, config, targetGuildId = null) {
+  const guild = await resolveGuild(client, targetGuildId);
   const { fromMs, toMs, fromRaw, toRaw } = resolveMessageDateBounds(config);
   const channels = await resolveChannelsForExport(client, guild, config.sourceChannelIds);
 
@@ -396,8 +403,13 @@ async function buildScheduledExport(client, config) {
   return { guild, txt, sections, fromRaw, toRaw };
 }
 
-async function runScheduledExport(client, { manual = false } = {}) {
-  const config = await loadScheduleConfig();
+async function runScheduledExport(client, { manual = false, guildId: explicitGuildId } = {}) {
+  const targetGuildId = explicitGuildId || getDiscordGuildId() || client.guilds.cache.first()?.id;
+  if (!targetGuildId) {
+    throw Object.assign(new Error('Nenhum servidor encontrado para executar exportação.'), { status: 400 });
+  }
+
+  const config = await loadScheduleConfig(targetGuildId);
   if (!manual && !config.enabled) return null;
   if (!config.destinationChannelId || config.sourceChannelIds.length === 0) {
     throw Object.assign(new Error('Agendamento incompleto: origem e destino são obrigatórios.'), { status: 400 });
@@ -410,7 +422,7 @@ async function runScheduledExport(client, { manual = false } = {}) {
 
   acquireJobLock();
   try {
-    const { guild, txt, sections, fromRaw, toRaw } = await buildScheduledExport(client, config);
+    const { guild, txt, sections, fromRaw, toRaw } = await buildScheduledExport(client, config, targetGuildId);
     const destination = await client.channels.fetch(config.destinationChannelId).catch(() => null);
 
     if (!destination || destination.guildId !== guild.id || !destination.isTextBased?.()) {
@@ -441,7 +453,7 @@ async function runScheduledExport(client, { manual = false } = {}) {
       lastRunKey: nowParts.runKey,
       lastRunAt: new Date().toISOString(),
       lastError: null,
-    });
+    }, targetGuildId);
 
     console.log(
       `[Corvo] Exportação ${manual ? 'manual' : 'agendada'} enviada para #${destination.name} (${total} msgs, ${sections.length} canais).`,
@@ -449,17 +461,22 @@ async function runScheduledExport(client, { manual = false } = {}) {
     return { ok: true, total, channels: sections.length, destinationId: destination.id, from: fromRaw, to: toRaw };
   } catch (error) {
     await saveScheduleConfig({
-      ...(await loadScheduleConfig()),
+      ...(await loadScheduleConfig(targetGuildId)),
       lastError: error.message ?? String(error),
-    });
+    }, targetGuildId);
     throw error;
   } finally {
     releaseJobLock();
   }
 }
 
-async function runScheduledAiAnalysis(client, { manual = false } = {}) {
-  const config = await loadScheduleConfig();
+async function runScheduledAiAnalysis(client, { manual = false, guildId: explicitGuildId } = {}) {
+  const targetGuildId = explicitGuildId || getDiscordGuildId() || client.guilds.cache.first()?.id;
+  if (!targetGuildId) {
+    throw Object.assign(new Error('Nenhum servidor encontrado para executar análise IA.'), { status: 400 });
+  }
+
+  const config = await loadScheduleConfig(targetGuildId);
   if (!manual && !config.aiEnabled) return null;
 
   const destinationId = config.aiDestinationChannelId || config.destinationChannelId;
@@ -479,7 +496,7 @@ async function runScheduledAiAnalysis(client, { manual = false } = {}) {
 
   acquireJobLock();
   try {
-    const { guild, txt, sections, fromRaw, toRaw } = await buildScheduledExport(client, config);
+    const { guild, txt, sections, fromRaw, toRaw } = await buildScheduledExport(client, config, targetGuildId);
     const destination = await client.channels.fetch(destinationId).catch(() => null);
 
     if (!destination || destination.guildId !== guild.id || !destination.isTextBased?.()) {
@@ -521,7 +538,7 @@ async function runScheduledAiAnalysis(client, { manual = false } = {}) {
       aiLastRunKey: nowParts.runKey,
       aiLastRunAt: new Date().toISOString(),
       aiLastError: null,
-    });
+    }, targetGuildId);
 
     console.log(
       `[Corvo] Análise IA ${manual ? 'manual' : 'agendada'} enviada para #${destination.name} (${total} msgs → ${messageCount} mensagem(ns) Discord).`,
@@ -540,9 +557,9 @@ async function runScheduledAiAnalysis(client, { manual = false } = {}) {
     };
   } catch (error) {
     await saveScheduleConfig({
-      ...(await loadScheduleConfig()),
+      ...(await loadScheduleConfig(targetGuildId)),
       aiLastError: error.message ?? String(error),
-    });
+    }, targetGuildId);
     throw error;
   } finally {
     releaseJobLock();
@@ -552,35 +569,50 @@ async function runScheduledAiAnalysis(client, { manual = false } = {}) {
 async function tickSchedule(client) {
   if (!client?.isReady?.()) return;
 
-  const config = await loadScheduleConfig();
   const now = getSaoPauloParts();
 
-  if (
-    config.enabled &&
-    now.hour === config.hour &&
-    now.minute === config.minute &&
-    config.daysOfWeek.includes(now.weekday) &&
-    config.lastRunKey !== now.runKey
-  ) {
-    try {
-      await runScheduledExport(client, { manual: false });
-    } catch (error) {
-      console.error('[Corvo] Falha na exportação agendada:', error.message ?? error);
-    }
+  let activeDocs = [];
+  try {
+    activeDocs = await ExportSchedule.find({
+      $or: [{ enabled: true }, { aiEnabled: true }],
+    }).lean();
+  } catch (error) {
+    console.error('[Corvo] Falha ao verificar agendamentos no MongoDB:', error.message ?? error);
+    return;
   }
 
-  const latest = await loadScheduleConfig();
-  if (
-    latest.aiEnabled &&
-    now.hour === latest.aiHour &&
-    now.minute === latest.aiMinute &&
-    latest.aiDaysOfWeek.includes(now.weekday) &&
-    latest.aiLastRunKey !== now.runKey
-  ) {
-    try {
-      await runScheduledAiAnalysis(client, { manual: false });
-    } catch (error) {
-      console.error('[Corvo] Falha na análise IA agendada:', error.message ?? error);
+  for (const doc of activeDocs) {
+    const guildId = doc.guildId;
+    if (!client.guilds.cache.has(guildId)) continue;
+
+    const config = toPublicConfig(doc);
+
+    if (
+      config.enabled &&
+      now.hour === config.hour &&
+      now.minute === config.minute &&
+      config.daysOfWeek.includes(now.weekday) &&
+      config.lastRunKey !== now.runKey
+    ) {
+      try {
+        await runScheduledExport(client, { manual: false, guildId });
+      } catch (error) {
+        console.error(`[Corvo] Falha na exportação agendada (servidor ${guildId}):`, error.message ?? error);
+      }
+    }
+
+    if (
+      config.aiEnabled &&
+      now.hour === config.aiHour &&
+      now.minute === config.aiMinute &&
+      config.aiDaysOfWeek.includes(now.weekday) &&
+      config.aiLastRunKey !== now.runKey
+    ) {
+      try {
+        await runScheduledAiAnalysis(client, { manual: false, guildId });
+      } catch (error) {
+        console.error(`[Corvo] Falha na análise IA agendada (servidor ${guildId}):`, error.message ?? error);
+      }
     }
   }
 }

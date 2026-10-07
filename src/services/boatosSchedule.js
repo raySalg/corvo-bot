@@ -88,8 +88,9 @@ function normalizeConfig(next = {}, base = cachedConfig || DEFAULT_BOATOS) {
   };
 }
 
-async function loadBoatosConfig() {
-  const guildId = getDiscordGuildId();
+async function loadBoatosConfig(targetGuildId = null) {
+  const guildId = targetGuildId || getDiscordGuildId();
+  if (!guildId) return { ...DEFAULT_BOATOS };
   try {
     const doc = await BoatosSchedule.findOne({ guildId }).lean();
     cachedConfig = toPublicConfig(doc);
@@ -101,8 +102,11 @@ async function loadBoatosConfig() {
   }
 }
 
-async function saveBoatosConfig(next) {
-  const guildId = getDiscordGuildId();
+async function saveBoatosConfig(next, targetGuildId = null) {
+  const guildId = targetGuildId || getDiscordGuildId();
+  if (!guildId) {
+    throw Object.assign(new Error('ID do servidor (guildId) é obrigatório para salvar boatos.'), { status: 400 });
+  }
   const config = normalizeConfig(next);
 
   const doc = await BoatosSchedule.findOneAndUpdate(
@@ -202,8 +206,13 @@ function validateBoatosInput(body) {
   };
 }
 
-async function runBoatosAnalysis(client, { manual = false } = {}) {
-  const config = await loadBoatosConfig();
+async function runBoatosAnalysis(client, { manual = false, guildId: explicitGuildId } = {}) {
+  const targetGuildId = explicitGuildId || getDiscordGuildId() || client.guilds.cache.first()?.id;
+  if (!targetGuildId) {
+    throw Object.assign(new Error('Nenhum servidor encontrado para executar boatos.'), { status: 400 });
+  }
+
+  const config = await loadBoatosConfig(targetGuildId);
   if (!manual && !config.enabled) return null;
 
   if (!config.destinationChannelId || config.sourceChannelIds.length === 0) {
@@ -223,7 +232,7 @@ async function runBoatosAnalysis(client, { manual = false } = {}) {
   acquireJobLock();
 
   try {
-    const { guild, txt, sections, fromRaw, toRaw } = await buildScheduledExport(client, config);
+    const { guild, txt, sections, fromRaw, toRaw } = await buildScheduledExport(client, config, targetGuildId);
     const destination = await client.channels.fetch(config.destinationChannelId).catch(() => null);
 
     if (!destination || destination.guildId !== guild.id || !destination.isTextBased?.()) {
@@ -275,7 +284,7 @@ async function runBoatosAnalysis(client, { manual = false } = {}) {
       lastRunKey: nowParts.runKey,
       lastRunAt: new Date().toISOString(),
       lastError: null,
-    });
+    }, targetGuildId);
 
     console.log(
       `[Corvo] Boatos ${manual ? 'manual' : 'agendado'} enviado para #${destination.name} (${total} msgs → ${messageCount} mensagem(ns)).`,
@@ -295,9 +304,9 @@ async function runBoatosAnalysis(client, { manual = false } = {}) {
     };
   } catch (error) {
     await saveBoatosConfig({
-      ...(await loadBoatosConfig()),
+      ...(await loadBoatosConfig(targetGuildId)),
       lastError: error.message ?? String(error),
-    });
+    }, targetGuildId);
     throw error;
   } finally {
     releaseJobLock();
@@ -307,18 +316,30 @@ async function runBoatosAnalysis(client, { manual = false } = {}) {
 async function tickBoatos(client) {
   if (!client?.isReady?.()) return;
 
-  const config = await loadBoatosConfig();
-  if (!config.enabled) return;
-
   const now = getSaoPauloParts();
-  if (now.hour !== config.hour || now.minute !== config.minute) return;
-  if (!config.daysOfWeek.includes(now.weekday)) return;
-  if (config.lastRunKey === now.runKey) return;
 
+  let activeDocs = [];
   try {
-    await runBoatosAnalysis(client, { manual: false });
+    activeDocs = await BoatosSchedule.find({ enabled: true }).lean();
   } catch (error) {
-    console.error('[Corvo] Falha nos boatos agendados:', error.message ?? error);
+    console.error('[Corvo] Falha ao buscar agendamentos de boatos no MongoDB:', error.message ?? error);
+    return;
+  }
+
+  for (const doc of activeDocs) {
+    const guildId = doc.guildId;
+    if (!client.guilds.cache.has(guildId)) continue;
+
+    const config = toPublicConfig(doc);
+    if (now.hour !== config.hour || now.minute !== config.minute) continue;
+    if (!config.daysOfWeek.includes(now.weekday)) continue;
+    if (config.lastRunKey === now.runKey) continue;
+
+    try {
+      await runBoatosAnalysis(client, { manual: false, guildId });
+    } catch (error) {
+      console.error(`[Corvo] Falha nos boatos agendados (servidor ${guildId}):`, error.message ?? error);
+    }
   }
 }
 

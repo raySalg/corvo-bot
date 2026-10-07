@@ -1,5 +1,7 @@
 const state = {
   guild: null,
+  guilds: [],
+  currentGuildId: null,
   membersLoaded: false,
   activeChannelId: null,
   canSend: false,
@@ -13,8 +15,21 @@ const state = {
 
 const els = {
   app: document.getElementById('app'),
+  guildsNav: document.getElementById('guilds-nav'),
+  guildRailList: document.getElementById('guild-rail-list'),
+  guildHomeBtn: document.getElementById('guild-home-btn'),
+  guildRailTooltip: document.getElementById('guild-rail-tooltip'),
+  tooltipName: document.querySelector('.floating-guild-tooltip-name'),
+  tooltipMeta: document.querySelector('.floating-guild-tooltip-meta'),
+  serverHeaderBtn: document.getElementById('server-header-btn'),
   guildName: document.getElementById('guild-name'),
+  guildMemberCount: document.getElementById('guild-member-count'),
   guildIcon: document.getElementById('guild-icon'),
+  guildSelect: document.getElementById('guild-select'),
+  serverDropdownMenu: document.getElementById('server-dropdown-menu'),
+  serverDropdownTitle: document.getElementById('server-dropdown-title'),
+  serverDropdownList: document.getElementById('server-dropdown-list'),
+  refreshGuildsBtn: document.getElementById('refresh-guilds-btn'),
   channelList: document.getElementById('channel-list'),
   botAvatar: document.getElementById('bot-avatar'),
   botName: document.getElementById('bot-name'),
@@ -139,7 +154,13 @@ function setButtonLoading(button, loading) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
+  let effectivePath = path;
+  if (state.currentGuildId && !path.includes('guildId=') && !path.startsWith('/api/guilds')) {
+    const sep = effectivePath.includes('?') ? '&' : '?';
+    effectivePath = `${effectivePath}${sep}guildId=${encodeURIComponent(state.currentGuildId)}`;
+  }
+
+  const response = await fetch(effectivePath, {
     signal: options.signal,
     headers: {
       Accept: 'application/json',
@@ -1246,35 +1267,247 @@ async function sendMessage(event) {
   }
 }
 
+function getGuildAcronym(name) {
+  if (!name) return '?';
+  const clean = String(name).trim();
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length === 1) {
+    return clean.slice(0, 3).toUpperCase();
+  }
+  return words
+    .map((w) => Array.from(w)[0])
+    .join('')
+    .slice(0, 4)
+    .toUpperCase();
+}
+
+function renderGuildsNav(guilds) {
+  if (!els.guildRailList) return;
+  els.guildRailList.innerHTML = guilds
+    .map((g) => {
+      const isActive = g.id === state.currentGuildId;
+      const content = g.iconUrl
+        ? `<img src="${escapeHtml(g.iconUrl)}" alt="${escapeHtml(g.name)}" loading="lazy" />`
+        : `<span class="guild-nav-acronym">${escapeHtml(getGuildAcronym(g.name))}</span>`;
+      const meta = g.memberCount ? `${g.memberCount} membros` : 'Servidor Discord';
+      return `
+        <div class="guild-nav-item ${isActive ? 'is-active' : ''}" data-guild-id="${escapeHtml(g.id)}" data-tooltip-name="${escapeHtml(g.name)}" data-tooltip-meta="${escapeHtml(meta)}">
+          <div class="guild-nav-pill"></div>
+          <button type="button" class="guild-nav-btn" data-guild-id="${escapeHtml(g.id)}" aria-label="${escapeHtml(g.name)}" title="${escapeHtml(g.name)}">
+            ${content}
+          </button>
+        </div>
+      `;
+    })
+    .join('');
+}
+
+function renderGuildsDropdown(guilds) {
+  if (!els.serverDropdownList) return;
+  if (els.serverDropdownTitle) {
+    els.serverDropdownTitle.textContent = `Servidores (${guilds.length})`;
+  }
+  if (!guilds.length) {
+    els.serverDropdownList.innerHTML = '<div class="empty-state" style="padding:12px;font-size:12px;">Nenhum servidor encontrado.</div>';
+    return;
+  }
+  els.serverDropdownList.innerHTML = guilds
+    .map((g) => {
+      const isActive = g.id === state.currentGuildId;
+      const iconHtml = g.iconUrl
+        ? `<img class="dropdown-item-icon" src="${escapeHtml(g.iconUrl)}" alt="" loading="lazy" />`
+        : `<div class="dropdown-item-icon">${escapeHtml(getGuildAcronym(g.name))}</div>`;
+      const membersText = g.memberCount ? `${g.memberCount} membros` : 'Servidor Discord';
+      return `
+        <button type="button" class="server-dropdown-item ${isActive ? 'is-active' : ''}" data-guild-id="${escapeHtml(g.id)}" role="menuitem">
+          ${iconHtml}
+          <div class="dropdown-item-info">
+            <span class="dropdown-item-name">${escapeHtml(g.name)}</span>
+            <span class="dropdown-item-count">${escapeHtml(membersText)}</span>
+          </div>
+          ${isActive ? `
+            <span class="item-check" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </span>
+          ` : ''}
+        </button>
+      `;
+    })
+    .join('');
+}
+
+function updateActiveGuildUi(guildId) {
+  document.querySelectorAll('#guild-rail-list .guild-nav-item').forEach((item) => {
+    item.classList.toggle('is-active', item.dataset.guildId === guildId);
+  });
+
+  document.querySelectorAll('#server-dropdown-list .server-dropdown-item').forEach((item) => {
+    const isActive = item.dataset.guildId === guildId;
+    item.classList.toggle('is-active', isActive);
+    let check = item.querySelector('.item-check');
+    if (isActive && !check) {
+      const span = document.createElement('span');
+      span.className = 'item-check';
+      span.setAttribute('aria-hidden', 'true');
+      span.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+      item.appendChild(span);
+    } else if (!isActive && check) {
+      check.remove();
+    }
+  });
+
+  if (els.guildSelect && !els.guildSelect.classList.contains('hidden')) {
+    els.guildSelect.value = guildId;
+  }
+}
+
+function toggleServerDropdown() {
+  if (!els.serverDropdownMenu) return;
+  const isHidden = els.serverDropdownMenu.classList.contains('hidden');
+  if (isHidden) {
+    openServerDropdown();
+  } else {
+    closeServerDropdown();
+  }
+}
+
+function openServerDropdown() {
+  if (!els.serverDropdownMenu) return;
+  els.serverDropdownMenu.classList.remove('hidden');
+  els.serverHeaderBtn?.setAttribute('aria-expanded', 'true');
+}
+
+function closeServerDropdown() {
+  if (!els.serverDropdownMenu) return;
+  els.serverDropdownMenu.classList.add('hidden');
+  els.serverHeaderBtn?.setAttribute('aria-expanded', 'false');
+}
+
+async function refreshGuildsList() {
+  try {
+    const resp = await api('/api/guilds');
+    state.guilds = Array.isArray(resp.guilds) ? resp.guilds : [];
+  } catch (err) {
+    console.error('Falha ao listar servidores:', err);
+    state.guilds = [];
+  }
+  renderGuildsNav(state.guilds);
+  renderGuildsDropdown(state.guilds);
+  if (state.currentGuildId) {
+    updateActiveGuildUi(state.currentGuildId);
+  }
+}
+
+function initGuildRailTooltips() {
+  if (!els.guildRailTooltip || !els.guildsNav) return;
+
+  els.guildsNav.addEventListener('mouseover', (e) => {
+    const item = e.target.closest('.guild-nav-item');
+    if (!item) return;
+
+    const name = item.dataset.tooltipName;
+    const meta = item.dataset.tooltipMeta;
+    if (!name) return;
+
+    els.tooltipName.textContent = name;
+    if (meta) {
+      els.tooltipMeta.textContent = meta;
+      els.tooltipMeta.classList.remove('hidden');
+    } else {
+      els.tooltipMeta.textContent = '';
+      els.tooltipMeta.classList.add('hidden');
+    }
+
+    const rect = item.getBoundingClientRect();
+    els.guildRailTooltip.style.top = `${rect.top + rect.height / 2}px`;
+    els.guildRailTooltip.style.left = `${rect.right + 12}px`;
+    els.guildRailTooltip.classList.remove('hidden');
+  });
+
+  els.guildsNav.addEventListener('mouseout', (e) => {
+    const item = e.target.closest('.guild-nav-item');
+    const related = e.relatedTarget?.closest?.('.guild-nav-item');
+    if (item && (!related || related !== item)) {
+      els.guildRailTooltip.classList.add('hidden');
+    }
+  });
+}
+
+async function loadGuildData(guildId = null) {
+  setBusyHint('Carregando servidor…');
+  const path = guildId ? `/api/guild?guildId=${encodeURIComponent(guildId)}` : '/api/guild';
+  const guild = await api(path);
+  state.guild = guild;
+  state.currentGuildId = guild.id;
+  els.guildName.textContent = guild.name;
+  if (els.guildMemberCount) {
+    els.guildMemberCount.textContent = guild.memberCount ? `${guild.memberCount} membros` : '';
+  }
+  if (els.guildSelect && !els.guildSelect.classList.contains('hidden')) {
+    els.guildSelect.value = guild.id;
+  }
+  if (guild.iconUrl) {
+    els.guildIcon.src = guild.iconUrl;
+    els.guildIcon.hidden = false;
+  } else {
+    els.guildIcon.hidden = true;
+  }
+  if (guild.bot) {
+    els.botAvatar.src = guild.bot.avatarUrl;
+    els.botName.textContent = guild.bot.displayName || guild.bot.username;
+  }
+  renderChannels(guild);
+  updateActiveGuildUi(guild.id);
+  els.app.classList.remove('is-booting');
+  setBusyHint(guild.botIsAdmin ? '' : 'Bot sem Administrador — alguns canais podem faltar.');
+
+  const first =
+    guild.uncategorized?.[0] ||
+    guild.categories?.flatMap((c) => c.channels || [])?.[0] ||
+    null;
+  if (first) {
+    await selectChannel(first.id, first.name, first.canSend);
+  } else {
+    state.activeChannelId = null;
+    els.activeChannelName.textContent = 'nenhum canal';
+    els.messageList.innerHTML = '';
+    els.messagesEmpty.classList.remove('hidden');
+    els.messagesEmpty.textContent = 'Nenhum canal de texto disponível neste servidor.';
+    updateComposer();
+  }
+
+  try {
+    const members = await api(`/api/members?guildId=${encodeURIComponent(guild.id)}`);
+    state.membersLoaded = true;
+    renderMembers(members.groups || []);
+  } catch {
+    state.membersLoaded = false;
+  }
+}
+
 async function bootstrap() {
   try {
     setBusyHint('Conectando ao Discord…');
-    const guild = await api('/api/guild');
-    state.guild = guild;
-    els.guildName.textContent = guild.name;
-    if (guild.iconUrl) {
-      els.guildIcon.src = guild.iconUrl;
-      els.guildIcon.hidden = false;
-    }
-    if (guild.bot) {
-      els.botAvatar.src = guild.bot.avatarUrl;
-      els.botName.textContent = guild.bot.displayName || guild.bot.username;
-    }
-    renderChannels(guild);
-    els.app.classList.remove('is-booting');
-    setBusyHint(guild.botIsAdmin ? '' : 'Bot sem Administrador — alguns canais podem faltar.');
+    initGuildRailTooltips();
+    await refreshGuildsList();
 
-    const first =
-      guild.uncategorized?.[0] ||
-      guild.categories?.flatMap((c) => c.channels || [])?.[0] ||
-      null;
-    if (first) {
-      await selectChannel(first.id, first.name, first.canSend);
+    if (state.guilds.length > 1 && els.guildSelect) {
+      els.guildSelect.innerHTML = state.guilds
+        .map((g) => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`)
+        .join('');
+      els.guildSelect.addEventListener('change', async (e) => {
+        try {
+          await loadGuildData(e.target.value);
+        } catch (err) {
+          showToast(err.message, true);
+        }
+      });
     }
 
-    const members = await api('/api/members');
-    state.membersLoaded = true;
-    renderMembers(members.groups);
+    const initialGuildId = state.guilds[0]?.id || null;
+    await loadGuildData(initialGuildId);
   } catch (error) {
     els.app.classList.remove('is-booting');
     els.guildName.textContent = 'Indisponível';
@@ -1282,6 +1515,61 @@ async function bootstrap() {
     showToast(error.message, true);
   }
 }
+
+els.guildRailList?.addEventListener('click', async (event) => {
+  const item = event.target.closest('[data-guild-id]');
+  if (!item) return;
+  const guildId = item.dataset.guildId;
+  if (!guildId || guildId === state.currentGuildId) return;
+  try {
+    await loadGuildData(guildId);
+  } catch (err) {
+    showToast(`Erro ao alternar servidor: ${err.message}`, true);
+  }
+});
+
+els.serverDropdownList?.addEventListener('click', async (event) => {
+  const item = event.target.closest('[data-guild-id]');
+  if (!item) return;
+  const guildId = item.dataset.guildId;
+  closeServerDropdown();
+  if (!guildId || guildId === state.currentGuildId) return;
+  try {
+    await loadGuildData(guildId);
+  } catch (err) {
+    showToast(`Erro ao alternar servidor: ${err.message}`, true);
+  }
+});
+
+els.serverHeaderBtn?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleServerDropdown();
+});
+
+els.refreshGuildsBtn?.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  setButtonLoading(els.refreshGuildsBtn, true);
+  try {
+    await refreshGuildsList();
+    showToast('Lista de servidores atualizada!');
+  } catch (err) {
+    showToast(`Erro ao atualizar servidores: ${err.message}`, true);
+  } finally {
+    setButtonLoading(els.refreshGuildsBtn, false);
+  }
+});
+
+els.guildHomeBtn?.addEventListener('click', () => {
+  showToast(`Conectado ao Discord (${state.guilds.length} servidor${state.guilds.length === 1 ? '' : 'es'}).`);
+});
+
+document.addEventListener('click', (event) => {
+  if (els.serverDropdownMenu && !els.serverDropdownMenu.classList.contains('hidden')) {
+    if (!els.serverDropdownMenu.contains(event.target) && !els.serverHeaderBtn?.contains(event.target)) {
+      closeServerDropdown();
+    }
+  }
+});
 
 els.channelList.addEventListener('click', (event) => {
   const button = event.target.closest('.channel-btn');
@@ -1378,6 +1666,7 @@ document.addEventListener('keydown', (event) => {
   if (!els.boatosModal.classList.contains('hidden')) closeBoatosModal();
   if (!els.messageModal.classList.contains('hidden')) closeMessageModal();
   if (!els.climateModal.classList.contains('hidden')) closeClimateModal();
+  closeServerDropdown();
 });
 
 els.messages.addEventListener('scroll', () => {

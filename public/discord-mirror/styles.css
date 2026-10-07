@@ -48,7 +48,7 @@ input {
 
 .app {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 240px;
+  grid-template-columns: 72px 240px minmax(0, 1fr) 240px;
   grid-template-rows: minmax(0, 1fr);
   height: 100%;
   max-height: 100dvh;
@@ -158,26 +158,440 @@ input {
   min-width: 0;
 }
 
+/* ==========================================================================
+   Guilds Rail (Barra Vertical de Servidores)
+   ========================================================================== */
+.guilds-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 72px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg-tertiary);
+  padding: 12px 0;
+  user-select: none;
+  scrollbar-width: none;
+  z-index: 30;
+}
+
+.guilds-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.guilds-nav-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+}
+
+.guild-separator {
+  width: 32px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 1px;
+  margin: 2px 0;
+}
+
+.guild-rail-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+}
+
+.guild-nav-item {
+  position: relative;
+  width: 72px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guild-nav-pill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 0;
+  border-radius: 0 4px 4px 0;
+  background: #ffffff;
+  transition: height 160ms var(--ease), opacity 160ms var(--ease);
+  opacity: 0;
+}
+
+.guild-nav-item:hover .guild-nav-pill {
+  height: 20px;
+  opacity: 1;
+}
+
+.guild-nav-item.is-active .guild-nav-pill {
+  height: 40px;
+  opacity: 1;
+}
+
+.guild-nav-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-normal);
+  transition:
+    border-radius 200ms var(--ease),
+    background-color 200ms var(--ease),
+    color 200ms var(--ease);
+  overflow: hidden;
+}
+
+.guild-nav-btn:hover {
+  border-radius: 16px;
+  background-color: var(--brand);
+  color: #ffffff;
+}
+
+.guild-nav-item.is-active .guild-nav-btn {
+  border-radius: 16px;
+  background-color: var(--brand);
+  color: #ffffff;
+}
+
+.guild-nav-btn.home-btn {
+  background-color: var(--bg-primary);
+  color: var(--brand);
+}
+
+.guild-nav-btn.home-btn:hover,
+.guild-nav-btn.home-btn:focus-visible {
+  background-color: var(--brand);
+  color: #ffffff;
+}
+
+.guild-nav-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+  pointer-events: none;
+}
+
+.guild-nav-acronym {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: inherit;
+  pointer-events: none;
+  line-height: 1;
+}
+
+/* Tooltip flutuante global */
+.floating-guild-tooltip {
+  position: fixed;
+  transform: translateY(-50%);
+  background: #111214;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: opacity 120ms var(--ease);
+}
+
+.floating-guild-tooltip.hidden {
+  display: none;
+}
+
+.floating-guild-tooltip::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 5px solid #111214;
+}
+
+.floating-guild-tooltip-name {
+  color: var(--header-primary);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.floating-guild-tooltip-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* ==========================================================================
+   Server Header & Switcher Dropdown
+   ========================================================================== */
+.server-header {
+  position: relative;
+  z-index: 15;
+}
+
+.server-header-left {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.server-header-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px;
+  margin: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--duration) var(--ease);
+}
+
+.server-header-btn:hover,
+.server-header-btn:focus-visible,
+.server-header-btn[aria-expanded="true"] {
+  background: var(--bg-modifier-hover);
+}
+
 .server-icon {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: 30%;
   object-fit: cover;
+  flex-shrink: 0;
   transition: transform var(--duration) var(--ease);
 }
 
-.server-header:hover .server-icon {
+.server-header-btn:hover .server-icon {
   transform: scale(1.06);
 }
 
-.server-header h1 {
+.server-name-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.server-header h1,
+.server-name-wrap h1 {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--header-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.guild-member-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-chevron-icon {
+  flex-shrink: 0;
+  color: var(--channel-icon);
+  transition: transform 200ms var(--ease), color 160ms var(--ease);
+}
+
+.server-header-btn:hover .dropdown-chevron-icon,
+.server-header-btn[aria-expanded="true"] .dropdown-chevron-icon {
+  color: var(--header-primary);
+}
+
+.server-header-btn[aria-expanded="true"] .dropdown-chevron-icon {
+  transform: rotate(180deg);
+}
+
+.guild-select {
+  display: none;
+}
+
+/* Menu Dropdown de Troca de Servidor */
+.server-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 226px;
+  background: #111214;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  padding: 6px;
+  z-index: 50;
+  animation: dropdownIn 160ms var(--ease);
+}
+
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.server-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 4px;
+}
+
+.refresh-guilds-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 3px;
+  transition: color 140ms var(--ease), background 140ms var(--ease);
+}
+
+.refresh-guilds-btn:hover {
+  color: var(--text-strong);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.server-dropdown-list {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
+}
+
+.server-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 5px;
+  background: transparent;
+  border: none;
+  color: var(--text-normal);
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms var(--ease), color 120ms var(--ease);
+}
+
+.server-dropdown-item:hover {
+  background-color: var(--brand);
+  color: #ffffff;
+}
+
+.server-dropdown-item.is-active {
+  background-color: rgba(88, 101, 242, 0.16);
+  color: var(--text-strong);
+}
+
+.server-dropdown-item.is-active:hover {
+  background-color: var(--brand);
+  color: #ffffff;
+}
+
+.dropdown-item-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #dbdee1;
+}
+
+.server-dropdown-item:hover .dropdown-item-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.dropdown-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.dropdown-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: inherit;
+}
+
+.dropdown-item-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.server-dropdown-item:hover .dropdown-item-count,
+.server-dropdown-item:hover .item-check {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.item-check {
+  flex-shrink: 0;
+  color: var(--brand);
+  display: flex;
+  align-items: center;
 }
 
 .channel-list,
@@ -1289,33 +1703,26 @@ input {
   background-clip: padding-box;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1080px) {
   .app {
-    grid-template-columns: 72px minmax(0, 1fr);
+    grid-template-columns: 72px 240px minmax(0, 1fr);
   }
 
   .members-sidebar {
     display: none;
   }
-
-  .channels-sidebar .server-header h1,
-  .channels-sidebar .user-meta,
-  .channel-btn .name,
-  .category-name {
-    display: none;
-  }
-
-  .channel-btn {
-    justify-content: center;
-  }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .app {
-    grid-template-columns: 1fr;
+    grid-template-columns: 72px minmax(0, 1fr);
   }
 
   .channels-sidebar {
+    display: none;
+  }
+
+  .members-sidebar {
     display: none;
   }
 }

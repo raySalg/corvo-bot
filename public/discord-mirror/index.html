@@ -14,11 +14,48 @@
   </head>
   <body>
     <div id="app" class="app is-booting">
+      <!-- Barra lateral de servidores (estilo Discord) -->
+      <nav id="guilds-nav" class="guilds-nav" aria-label="Servidores">
+        <div class="guilds-nav-inner">
+          <div class="guild-nav-item home-item" data-tooltip-name="Corvo" data-tooltip-meta="Espelho Discord">
+            <div class="guild-nav-pill"></div>
+            <button type="button" class="guild-nav-btn home-btn" id="guild-home-btn" aria-label="Início" title="Início">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
+                <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09-.01-.02-.04-.03-.07-.03-1.5.26-2.93.71-4.27 1.33-.01 0-.02.01-.03.02-2.72 4.07-3.47 8.03-3.1 11.95 0 .02.01.04.03.05 1.8 1.32 3.53 2.12 5.24 2.65.03.01.06 0 .07-.02.4-.55.76-1.13 1.07-1.74.02-.04 0-.08-.04-.09-.57-.22-1.11-.48-1.64-.78-.04-.02-.04-.08-.01-.11.11-.08.22-.17.33-.25.02-.02.05-.02.07-.01 3.44 1.57 7.15 1.57 10.55 0 .02-.01.05-.01.07.01.11.09.22.17.33.26.04.03.04.09-.01.11-.52.31-1.07.56-1.64.78-.04.01-.05.06-.04.09.32.61.68 1.19 1.07 1.74.03.01.06.02.09.01 1.72-.53 3.45-1.33 5.25-2.65.02-.01.03-.03.03-.05.44-4.53-.73-8.46-3.1-11.95-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12z"/>
+              </svg>
+            </button>
+          </div>
+          <div class="guild-separator"></div>
+          <div id="guild-rail-list" class="guild-rail-list"></div>
+        </div>
+      </nav>
+
       <aside class="sidebar channels-sidebar">
         <header class="server-header">
-          <div class="server-title">
-            <img id="guild-icon" class="server-icon" alt="" hidden />
-            <h1 id="guild-name">Conectando…</h1>
+          <div class="server-header-left">
+            <button type="button" id="server-header-btn" class="server-header-btn" aria-haspopup="true" aria-expanded="false" title="Clique para trocar de servidor">
+              <img id="guild-icon" class="server-icon" alt="" hidden />
+              <div class="server-name-wrap">
+                <h1 id="guild-name">Conectando…</h1>
+                <span id="guild-member-count" class="guild-member-count"></span>
+              </div>
+              <svg class="dropdown-chevron-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <select id="guild-select" class="guild-select hidden" aria-label="Selecionar servidor" title="Trocar de servidor"></select>
+            <div id="server-dropdown-menu" class="server-dropdown-menu hidden" role="menu">
+              <div class="server-dropdown-header">
+                <span id="server-dropdown-title">Servidores (0)</span>
+                <button type="button" id="refresh-guilds-btn" class="refresh-guilds-btn" title="Recarregar lista de servidores">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6M1 20v-6h6"/>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                  </svg>
+                </button>
+              </div>
+              <div id="server-dropdown-list" class="server-dropdown-list"></div>
+            </div>
           </div>
           <div class="server-header-actions">
             <button type="button" id="tools-btn" class="header-btn schedule-btn" title="Abrir ferramentas do espelho">
@@ -565,6 +602,11 @@
           </div>
         </form>
       </div>
+    </div>
+
+    <div id="guild-rail-tooltip" class="floating-guild-tooltip hidden" role="tooltip" aria-hidden="true">
+      <span class="floating-guild-tooltip-name"></span>
+      <span class="floating-guild-tooltip-meta"></span>
     </div>
 
     <script src="/app.js"></script>

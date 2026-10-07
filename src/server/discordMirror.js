@@ -256,21 +256,37 @@ async function buildChannelTree(guild, me) {
   return { categories, uncategorized };
 }
 
-async function resolveGuild(client) {
-  const guildId = getDiscordGuildId();
-  if (!guildId) {
-    throw Object.assign(new Error('DISCORD_GUILD_ID não configurado.'), { status: 500 });
+async function resolveGuild(client, requestedGuildId = null) {
+  const guildId = requestedGuildId || getDiscordGuildId();
+  if (guildId) {
+    let guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+      try {
+        guild = await client.guilds.fetch(guildId);
+      } catch {
+        // guild não encontrado com o ID especificado
+      }
+    }
+    if (guild) return guild;
   }
 
-  let guild = client.guilds.cache.get(guildId);
-  if (!guild) {
-    try {
-      guild = await client.guilds.fetch(guildId);
-    } catch {
-      throw Object.assign(new Error('Servidor não encontrado ou bot não está nele.'), { status: 404 });
+  // Fallback para o primeiro servidor disponível no cache ou via fetch
+  const firstCached = client.guilds.cache.first();
+  if (firstCached) return firstCached;
+
+  try {
+    const fetched = await client.guilds.fetch();
+    const firstEntry = fetched.first();
+    if (firstEntry) {
+      return await client.guilds.fetch(firstEntry.id);
     }
+  } catch {
+    // ignore
   }
-  return guild;
+
+  throw Object.assign(new Error('O bot não está em nenhum servidor do Discord ou o servidor está inacessível.'), {
+    status: 404,
+  });
 }
 
 async function buildMemberGroups(guild) {
@@ -329,14 +345,35 @@ async function buildMemberGroups(guild) {
 function createDiscordMirrorRouter(client) {
   const router = express.Router();
 
-  router.get('/api/guild', async (_req, res) => {
+  router.get('/api/guilds', async (_req, res) => {
     try {
       if (!client?.isReady?.()) {
         res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
         return;
       }
 
-      const guild = await resolveGuild(client);
+      const guilds = client.guilds.cache.map((guild) => ({
+        id: guild.id,
+        name: guild.name,
+        iconUrl: guild.iconURL({ size: 64, extension: 'png' }),
+        memberCount: guild.memberCount,
+      }));
+
+      res.json({ guilds });
+    } catch (error) {
+      console.error('[Corvo] GET /api/guilds:', error);
+      res.status(500).json({ error: error.message ?? 'Erro ao listar servidores.' });
+    }
+  });
+
+  router.get('/api/guild', async (req, res) => {
+    try {
+      if (!client?.isReady?.()) {
+        res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
+        return;
+      }
+
+      const guild = await resolveGuild(client, req.query.guildId);
       await guild.channels.fetch().catch(() => null);
       await guild.roles.fetch().catch(() => null);
       const me = guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
@@ -374,11 +411,15 @@ function createDiscordMirrorRouter(client) {
         return;
       }
 
-      const guild = await resolveGuild(client);
       const channel = await client.channels.fetch(req.params.channelId).catch(() => null);
+      if (!channel) {
+        res.status(404).json({ error: 'Canal não encontrado ou inacessível.' });
+        return;
+      }
 
-      if (!channel || channel.guildId !== guild.id) {
-        res.status(404).json({ error: 'Canal não encontrado neste servidor.' });
+      const guild = channel.guild || client.guilds.cache.get(channel.guildId);
+      if (!guild) {
+        res.status(404).json({ error: 'Servidor do canal não encontrado.' });
         return;
       }
 
@@ -454,11 +495,15 @@ function createDiscordMirrorRouter(client) {
 
       const maxMessages = 50_000;
 
-      const guild = await resolveGuild(client);
       const channel = await client.channels.fetch(req.params.channelId).catch(() => null);
+      if (!channel) {
+        res.status(404).json({ error: 'Canal não encontrado ou inacessível.' });
+        return;
+      }
 
-      if (!channel || channel.guildId !== guild.id) {
-        res.status(404).json({ error: 'Canal não encontrado neste servidor.' });
+      const guild = channel.guild || client.guilds.cache.get(channel.guildId);
+      if (!guild) {
+        res.status(404).json({ error: 'Servidor do canal não encontrado.' });
         return;
       }
 
@@ -520,11 +565,15 @@ function createDiscordMirrorRouter(client) {
         return;
       }
 
-      const guild = await resolveGuild(client);
       const channel = await client.channels.fetch(req.params.channelId).catch(() => null);
+      if (!channel) {
+        res.status(404).json({ error: 'Canal não encontrado ou inacessível.' });
+        return;
+      }
 
-      if (!channel || channel.guildId !== guild.id) {
-        res.status(404).json({ error: 'Canal não encontrado neste servidor.' });
+      const guild = channel.guild || client.guilds.cache.get(channel.guildId);
+      if (!guild) {
+        res.status(404).json({ error: 'Servidor do canal não encontrado.' });
         return;
       }
 
@@ -542,14 +591,14 @@ function createDiscordMirrorRouter(client) {
     }
   });
 
-  router.get('/api/members', async (_req, res) => {
+  router.get('/api/members', async (req, res) => {
     try {
       if (!client?.isReady?.()) {
         res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
         return;
       }
 
-      const guild = await resolveGuild(client);
+      const guild = await resolveGuild(client, req.query.guildId);
       const groups = await buildMemberGroups(guild);
       res.json({ guildId: guild.id, groups });
     } catch (error) {
@@ -558,13 +607,15 @@ function createDiscordMirrorRouter(client) {
     }
   });
 
-  router.get('/api/export-schedule', async (_req, res) => {
+  router.get('/api/export-schedule', async (req, res) => {
     try {
-      const config = await loadScheduleConfig();
+      const guild = await resolveGuild(client, req.query.guildId);
+      const config = await loadScheduleConfig(guild.id);
       res.json({
         timezone: TIME_ZONE,
         config,
         storage: 'mongodb',
+        guildId: guild.id,
       });
     } catch (error) {
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao carregar agendamento.' });
@@ -573,21 +624,23 @@ function createDiscordMirrorRouter(client) {
 
   router.put('/api/export-schedule', async (req, res) => {
     try {
+      const guild = await resolveGuild(client, req.query.guildId || req.body?.guildId);
       const validated = validateScheduleInput(req.body || {});
-      const config = await saveScheduleConfig(validated);
-      res.json({ timezone: TIME_ZONE, config, storage: 'mongodb' });
+      const config = await saveScheduleConfig(validated, guild.id);
+      res.json({ timezone: TIME_ZONE, config, storage: 'mongodb', guildId: guild.id });
     } catch (error) {
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao salvar agendamento.' });
     }
   });
 
-  router.post('/api/export-schedule/run', async (_req, res) => {
+  router.post('/api/export-schedule/run', async (req, res) => {
     try {
       if (!client?.isReady?.()) {
         res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
         return;
       }
-      const result = await runScheduledExport(client, { manual: true });
+      const guild = await resolveGuild(client, req.query.guildId || req.body?.guildId);
+      const result = await runScheduledExport(client, { manual: true, guildId: guild.id });
       res.json(result);
     } catch (error) {
       console.error('[Corvo] POST /api/export-schedule/run:', error);
@@ -595,13 +648,14 @@ function createDiscordMirrorRouter(client) {
     }
   });
 
-  router.post('/api/export-schedule/run-ai', async (_req, res) => {
+  router.post('/api/export-schedule/run-ai', async (req, res) => {
     try {
       if (!client?.isReady?.()) {
         res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
         return;
       }
-      const result = await runScheduledAiAnalysis(client, { manual: true });
+      const guild = await resolveGuild(client, req.query.guildId || req.body?.guildId);
+      const result = await runScheduledAiAnalysis(client, { manual: true, guildId: guild.id });
       res.json(result);
     } catch (error) {
       console.error('[Corvo] POST /api/export-schedule/run-ai:', error);
@@ -609,13 +663,15 @@ function createDiscordMirrorRouter(client) {
     }
   });
 
-  router.get('/api/boatos-schedule', async (_req, res) => {
+  router.get('/api/boatos-schedule', async (req, res) => {
     try {
-      const config = await loadBoatosConfig();
+      const guild = await resolveGuild(client, req.query.guildId);
+      const config = await loadBoatosConfig(guild.id);
       res.json({
         timezone: TIME_ZONE,
         config,
         storage: 'mongodb',
+        guildId: guild.id,
       });
     } catch (error) {
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao carregar agendamento de boatos.' });
@@ -624,21 +680,23 @@ function createDiscordMirrorRouter(client) {
 
   router.put('/api/boatos-schedule', async (req, res) => {
     try {
+      const guild = await resolveGuild(client, req.query.guildId || req.body?.guildId);
       const validated = validateBoatosInput(req.body || {});
-      const config = await saveBoatosConfig(validated);
-      res.json({ timezone: TIME_ZONE, config, storage: 'mongodb' });
+      const config = await saveBoatosConfig(validated, guild.id);
+      res.json({ timezone: TIME_ZONE, config, storage: 'mongodb', guildId: guild.id });
     } catch (error) {
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao salvar agendamento de boatos.' });
     }
   });
 
-  router.post('/api/boatos-schedule/run', async (_req, res) => {
+  router.post('/api/boatos-schedule/run', async (req, res) => {
     try {
       if (!client?.isReady?.()) {
         res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
         return;
       }
-      const result = await runBoatosAnalysis(client, { manual: true });
+      const guild = await resolveGuild(client, req.query.guildId || req.body?.guildId);
+      const result = await runBoatosAnalysis(client, { manual: true, guildId: guild.id });
       res.json(result);
     } catch (error) {
       console.error('[Corvo] POST /api/boatos-schedule/run:', error);
@@ -646,13 +704,15 @@ function createDiscordMirrorRouter(client) {
     }
   });
 
-  router.get('/api/message-schedule', async (_req, res) => {
+  router.get('/api/message-schedule', async (req, res) => {
     try {
-      const items = await listMessageSchedules();
+      const guild = await resolveGuild(client, req.query.guildId);
+      const items = await listMessageSchedules(guild.id);
       res.json({
         timezone: TIME_ZONE,
         items,
         storage: 'mongodb',
+        guildId: guild.id,
       });
     } catch (error) {
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao carregar mensagens agendadas.' });
@@ -661,9 +721,10 @@ function createDiscordMirrorRouter(client) {
 
   router.post('/api/message-schedule', async (req, res) => {
     try {
-      const item = await createMessageSchedule(req.body || {});
-      const items = await listMessageSchedules();
-      res.status(201).json({ timezone: TIME_ZONE, item, items, storage: 'mongodb' });
+      const guild = await resolveGuild(client, req.query.guildId || req.body?.guildId);
+      const item = await createMessageSchedule(req.body || {}, guild.id);
+      const items = await listMessageSchedules(guild.id);
+      res.status(201).json({ timezone: TIME_ZONE, item, items, storage: 'mongodb', guildId: guild.id });
     } catch (error) {
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao criar mensagem agendada.' });
     }
@@ -671,9 +732,10 @@ function createDiscordMirrorRouter(client) {
 
   router.put('/api/message-schedule/:id', async (req, res) => {
     try {
-      const item = await updateMessageSchedule(req.params.id, req.body || {});
-      const items = await listMessageSchedules();
-      res.json({ timezone: TIME_ZONE, item, items, storage: 'mongodb' });
+      const guild = await resolveGuild(client, req.query.guildId || req.body?.guildId);
+      const item = await updateMessageSchedule(req.params.id, req.body || {}, guild.id);
+      const items = await listMessageSchedules(guild.id);
+      res.json({ timezone: TIME_ZONE, item, items, storage: 'mongodb', guildId: guild.id });
     } catch (error) {
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao atualizar mensagem agendada.' });
     }
@@ -681,9 +743,10 @@ function createDiscordMirrorRouter(client) {
 
   router.delete('/api/message-schedule/:id', async (req, res) => {
     try {
-      await deleteMessageSchedule(req.params.id);
-      const items = await listMessageSchedules();
-      res.json({ timezone: TIME_ZONE, items, storage: 'mongodb' });
+      const guild = await resolveGuild(client, req.query.guildId);
+      await deleteMessageSchedule(req.params.id, guild.id);
+      const items = await listMessageSchedules(guild.id);
+      res.json({ timezone: TIME_ZONE, items, storage: 'mongodb', guildId: guild.id });
     } catch (error) {
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao remover mensagem agendada.' });
     }
@@ -695,8 +758,9 @@ function createDiscordMirrorRouter(client) {
         res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
         return;
       }
+      const guild = await resolveGuild(client, req.query.guildId || req.body?.guildId);
       const result = await sendScheduledMessageById(client, req.params.id, { manual: true });
-      const items = await listMessageSchedules();
+      const items = await listMessageSchedules(guild.id);
       res.json({ ...result, items });
     } catch (error) {
       console.error('[Corvo] POST /api/message-schedule/:id/run:', error);
@@ -704,13 +768,15 @@ function createDiscordMirrorRouter(client) {
     }
   });
 
-  router.get('/api/climate-schedule', async (_req, res) => {
+  router.get('/api/climate-schedule', async (req, res) => {
     try {
-      const config = await loadClimateConfig();
+      const guild = await resolveGuild(client, req.query.guildId);
+      const config = await loadClimateConfig(guild.id);
       res.json({
         timezone: TIME_ZONE,
         config,
         storage: 'mongodb',
+        guildId: guild.id,
       });
     } catch (error) {
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao carregar clima automatizado.' });
@@ -719,22 +785,24 @@ function createDiscordMirrorRouter(client) {
 
   router.put('/api/climate-schedule', async (req, res) => {
     try {
+      const guild = await resolveGuild(client, req.query.guildId || req.body?.guildId);
       const validated = validateClimateInput(req.body || {});
-      const current = await loadClimateConfig();
-      const config = await saveClimateConfig({ ...current, ...validated });
-      res.json({ timezone: TIME_ZONE, config, storage: 'mongodb' });
+      const current = await loadClimateConfig(guild.id);
+      const config = await saveClimateConfig({ ...current, ...validated }, guild.id);
+      res.json({ timezone: TIME_ZONE, config, storage: 'mongodb', guildId: guild.id });
     } catch (error) {
       res.status(error.status ?? 500).json({ error: error.message ?? 'Erro ao salvar clima automatizado.' });
     }
   });
 
-  router.post('/api/climate-schedule/run', async (_req, res) => {
+  router.post('/api/climate-schedule/run', async (req, res) => {
     try {
       if (!client?.isReady?.()) {
         res.status(503).json({ error: 'Bot ainda conectando ao Discord.' });
         return;
       }
-      const result = await runClimateReport(client, { manual: true });
+      const guild = await resolveGuild(client, req.query.guildId || req.body?.guildId);
+      const result = await runClimateReport(client, { manual: true, guildId: guild.id });
       res.json(result);
     } catch (error) {
       console.error('[Corvo] POST /api/climate-schedule/run:', error);

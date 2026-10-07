@@ -51,9 +51,11 @@ cp .env.example .env
 | Variável | Descrição |
 |----------|-----------|
 | `DISCORD_TOKEN` | Token do bot (obrigatório) |
-| `DISCORD_CLIENT_ID` | Application ID |
-| `DISCORD_GUILD_ID` | ID do servidor espelhado / comandos slash |
-| `DISCORD_PUBLIC_KEY` | Public Key (Interactions Endpoint) |
+| `DISCORD_CLIENT_ID` | Application ID (opcional — inferido automaticamente pelo token) |
+| `DISCORD_GUILD_ID` | ID do servidor (opcional — deixe vazio para funcionar em qualquer servidor) |
+| `DISCORD_PUBLIC_KEY` | Public Key (opcional, para endpoint HTTP de interações) |
+| `GEMINI_API_KEY` | Chave de API do Google Gemini (para análise IA, clima e boatos) |
+| `MONGODB_URI` | String de conexão MongoDB Atlas (para persistência de agendamentos) |
 | `PORT` | Porta HTTP (Render define automaticamente; localmente usa `3000`) |
 
 > **Segurança:** nunca commite o arquivo `.env`. O espelho web é público — trate a URL como secreta ou adicione autenticação depois.
@@ -62,8 +64,15 @@ cp .env.example .env
 
 ```bash
 npm install
-npm run deploy-commands   # registra o slash command /embed
-npm start                 # inicia o bot + UI em http://localhost:3000
+
+# Para registrar os comandos slash em QUALQUER servidor onde o bot estiver:
+npm run deploy-commands:global
+
+# Ou se quiser registrar apenas no servidor especificado em DISCORD_GUILD_ID:
+npm run deploy-commands
+
+# Inicia o bot + UI em http://localhost:3000
+npm start
 ```
 
 Para desenvolvimento com reload automático:
@@ -74,8 +83,10 @@ npm run dev
 
 ### 4. Convidar o bot
 
+Substitua `SEU_CLIENT_ID` pelo seu Application ID do Discord (o comando `deploy-commands` também gera esse link pronto no console):
+
 ```
-https://discord.com/api/oauth2/authorize?client_id=1517984369120378980&permissions=2147485696&scope=bot%20applications.commands
+https://discord.com/api/oauth2/authorize?client_id=SEU_CLIENT_ID&permissions=2147485696&scope=bot%20applications.commands
 ```
 
 ## Deploy no Render

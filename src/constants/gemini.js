@@ -1,7 +1,3 @@
-/** Google AI Studio (Gemini) — env GEMINI_API_KEY tem prioridade. */
-const GEMINI_API_KEY = 'AQ.Ab8RN6KzGe46jUp6VIsqbU2v0WxZK2CJ43rkikk3pnywjeptPg';
-const GEMINI_PROJECT_ID = '20468477723';
-const GEMINI_PROJECT_NAME = 'projects/20468477723';
 /** Alias preferido; se bater limite, o serviço troca automaticamente. */
 const GEMINI_MODEL = 'gemini-flash-latest';
 /**
@@ -22,7 +18,7 @@ const GEMINI_MODEL_FALLBACKS = [
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 function getGeminiApiKey() {
-  return process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim() || GEMINI_API_KEY;
+  return process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim() || '';
 }
 
 function getGeminiModel() {
@@ -42,7 +38,12 @@ function getGeminiModelChain(preferred = getGeminiModel()) {
 }
 
 function getGeminiProjectId() {
-  return process.env.GEMINI_PROJECT_ID?.trim() || GEMINI_PROJECT_ID;
+  return process.env.GEMINI_PROJECT_ID?.trim() || '';
+}
+
+function getGeminiProjectName() {
+  const projectId = getGeminiProjectId();
+  return projectId ? `projects/${projectId}` : '';
 }
 
 function getGeminiGenerateUrl(model = getGeminiModel()) {
@@ -51,12 +52,12 @@ function getGeminiGenerateUrl(model = getGeminiModel()) {
 
 module.exports = {
   GEMINI_API_BASE,
-  GEMINI_PROJECT_NAME,
   GEMINI_MODEL_FALLBACKS,
   getGeminiApiKey,
   getGeminiModel,
   getGeminiFallbackModels,
   getGeminiModelChain,
   getGeminiProjectId,
+  getGeminiProjectName,
   getGeminiGenerateUrl,
 };

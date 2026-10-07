@@ -69,8 +69,9 @@ function normalizeConfig(next = {}, base = cachedConfig || DEFAULT_CLIMATE) {
   };
 }
 
-async function loadClimateConfig() {
-  const guildId = getDiscordGuildId();
+async function loadClimateConfig(targetGuildId = null) {
+  const guildId = targetGuildId || getDiscordGuildId();
+  if (!guildId) return { ...DEFAULT_CLIMATE };
   try {
     const doc = await ClimateSchedule.findOne({ guildId }).lean();
     cachedConfig = toPublicConfig(doc);
@@ -82,8 +83,11 @@ async function loadClimateConfig() {
   }
 }
 
-async function saveClimateConfig(next) {
-  const guildId = getDiscordGuildId();
+async function saveClimateConfig(next, targetGuildId = null) {
+  const guildId = targetGuildId || getDiscordGuildId();
+  if (!guildId) {
+    throw Object.assign(new Error('ID do servidor (guildId) é obrigatório para salvar clima.'), { status: 400 });
+  }
   const config = normalizeConfig(next);
 
   const doc = await ClimateSchedule.findOneAndUpdate(
@@ -160,8 +164,13 @@ function formatClimateTimestamp(date = new Date()) {
   }).format(date);
 }
 
-async function runClimateReport(client, { manual = false } = {}) {
-  const config = await loadClimateConfig();
+async function runClimateReport(client, { manual = false, guildId: explicitGuildId } = {}) {
+  const targetGuildId = explicitGuildId || getDiscordGuildId() || client.guilds.cache.first()?.id;
+  if (!targetGuildId) {
+    throw Object.assign(new Error('Nenhum servidor encontrado para executar clima.'), { status: 400 });
+  }
+
+  const config = await loadClimateConfig(targetGuildId);
   if (!manual && !config.enabled) return null;
 
   if (!config.destinationChannelId) {
@@ -171,9 +180,8 @@ async function runClimateReport(client, { manual = false } = {}) {
   acquireJobLock();
 
   try {
-    const guildId = getDiscordGuildId();
-    let guild = client.guilds.cache.get(guildId);
-    if (!guild) guild = await client.guilds.fetch(guildId);
+    let guild = client.guilds.cache.get(targetGuildId);
+    if (!guild) guild = await client.guilds.fetch(targetGuildId);
 
     const destination = await client.channels.fetch(config.destinationChannelId).catch(() => null);
     if (!destination || destination.guildId !== guild.id || !destination.isTextBased?.()) {
@@ -199,7 +207,7 @@ async function runClimateReport(client, { manual = false } = {}) {
       lastRunKey: nowParts.runKey,
       lastRunAt: new Date().toISOString(),
       lastError: null,
-    });
+    }, targetGuildId);
 
     console.log(
       `[Corvo] Clima ${manual ? 'manual' : 'agendado'} enviado para #${destination.name} (${sent.messageCount} mensagem(ns)).`,
@@ -216,9 +224,9 @@ async function runClimateReport(client, { manual = false } = {}) {
     };
   } catch (error) {
     await saveClimateConfig({
-      ...(await loadClimateConfig()),
+      ...(await loadClimateConfig(targetGuildId)),
       lastError: error.message ?? String(error),
-    });
+    }, targetGuildId);
     throw error;
   } finally {
     releaseJobLock();
@@ -228,18 +236,30 @@ async function runClimateReport(client, { manual = false } = {}) {
 async function tickClimate(client) {
   if (!client?.isReady?.()) return;
 
-  const config = await loadClimateConfig();
-  if (!config.enabled) return;
-
   const now = getSaoPauloParts();
-  if (now.hour !== config.hour || now.minute !== config.minute) return;
-  if (!config.daysOfWeek.includes(now.weekday)) return;
-  if (config.lastRunKey === now.runKey) return;
 
+  let activeDocs = [];
   try {
-    await runClimateReport(client, { manual: false });
+    activeDocs = await ClimateSchedule.find({ enabled: true }).lean();
   } catch (error) {
-    console.error('[Corvo] Falha no clima agendado:', error.message ?? error);
+    console.error('[Corvo] Falha ao buscar agendamentos de clima no MongoDB:', error.message ?? error);
+    return;
+  }
+
+  for (const doc of activeDocs) {
+    const guildId = doc.guildId;
+    if (!client.guilds.cache.has(guildId)) continue;
+
+    const config = toPublicConfig(doc);
+    if (now.hour !== config.hour || now.minute !== config.minute) continue;
+    if (!config.daysOfWeek.includes(now.weekday)) continue;
+    if (config.lastRunKey === now.runKey) continue;
+
+    try {
+      await runClimateReport(client, { manual: false, guildId });
+    } catch (error) {
+      console.error(`[Corvo] Falha no clima agendado (servidor ${guildId}):`, error.message ?? error);
+    }
   }
 }
 

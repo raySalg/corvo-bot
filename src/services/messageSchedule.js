@@ -68,23 +68,29 @@ function validateMessageScheduleInput(body, { requireEnabled = false } = {}) {
   };
 }
 
-async function listMessageSchedules() {
-  const guildId = getDiscordGuildId();
-  const docs = await MessageSchedule.find({ guildId }).sort({ date: 1, hour: 1, minute: 1, createdAt: 1 }).lean();
+async function listMessageSchedules(targetGuildId = null) {
+  const guildId = targetGuildId || getDiscordGuildId() || null;
+  const filter = guildId ? { guildId } : {};
+  const docs = await MessageSchedule.find(filter).sort({ date: 1, hour: 1, minute: 1, createdAt: 1 }).lean();
   return docs.map(toPublicItem).filter(Boolean);
 }
 
-async function getMessageScheduleById(id) {
-  const guildId = getDiscordGuildId();
-  const doc = await MessageSchedule.findOne({ _id: id, guildId }).lean();
+async function getMessageScheduleById(id, targetGuildId = null) {
+  const guildId = targetGuildId || getDiscordGuildId();
+  const filter = { _id: id };
+  if (guildId) filter.guildId = guildId;
+  const doc = await MessageSchedule.findOne(filter).lean();
   if (!doc) {
     throw Object.assign(new Error('Agendamento não encontrado.'), { status: 404 });
   }
   return toPublicItem(doc);
 }
 
-async function createMessageSchedule(body) {
-  const guildId = getDiscordGuildId();
+async function createMessageSchedule(body, targetGuildId = null) {
+  const guildId = targetGuildId || getDiscordGuildId();
+  if (!guildId) {
+    throw Object.assign(new Error('ID do servidor (guildId) é obrigatório para agendar mensagens.'), { status: 400 });
+  }
   const validated = validateMessageScheduleInput(body);
 
   const doc = await MessageSchedule.create({
@@ -98,12 +104,14 @@ async function createMessageSchedule(body) {
   return toPublicItem(doc.toObject());
 }
 
-async function updateMessageSchedule(id, body) {
-  const guildId = getDiscordGuildId();
+async function updateMessageSchedule(id, body, targetGuildId = null) {
+  const guildId = targetGuildId || getDiscordGuildId();
+  const filter = { _id: id };
+  if (guildId) filter.guildId = guildId;
   const validated = validateMessageScheduleInput(body);
 
   const doc = await MessageSchedule.findOneAndUpdate(
-    { _id: id, guildId },
+    filter,
     {
       $set: {
         enabled: validated.enabled,
@@ -125,9 +133,11 @@ async function updateMessageSchedule(id, body) {
   return toPublicItem(doc);
 }
 
-async function deleteMessageSchedule(id) {
-  const guildId = getDiscordGuildId();
-  const doc = await MessageSchedule.findOneAndDelete({ _id: id, guildId }).lean();
+async function deleteMessageSchedule(id, targetGuildId = null) {
+  const guildId = targetGuildId || getDiscordGuildId();
+  const filter = { _id: id };
+  if (guildId) filter.guildId = guildId;
+  const doc = await MessageSchedule.findOneAndDelete(filter).lean();
   if (!doc) {
     throw Object.assign(new Error('Agendamento não encontrado.'), { status: 404 });
   }
@@ -159,8 +169,7 @@ async function sendMentionIfNeeded(channel, guild, mentionRoleId) {
 }
 
 async function sendScheduledMessageById(client, id, { manual = false } = {}) {
-  const guildId = getDiscordGuildId();
-  const doc = await MessageSchedule.findOne({ _id: id, guildId });
+  const doc = await MessageSchedule.findById(id);
   if (!doc) {
     throw Object.assign(new Error('Agendamento não encontrado.'), { status: 404 });
   }
@@ -173,7 +182,7 @@ async function sendScheduledMessageById(client, id, { manual = false } = {}) {
   }
 
   const channel = await client.channels.fetch(doc.channelId).catch(() => null);
-  if (!channel || channel.guildId !== guildId || !channel.isTextBased?.()) {
+  if (!channel || channel.guildId !== doc.guildId || !channel.isTextBased?.()) {
     throw Object.assign(new Error('Canal de destino inválido ou inacessível.'), { status: 400 });
   }
 
@@ -224,11 +233,17 @@ function matchesScheduleSlot(item, now) {
 async function tickMessageSchedule(client) {
   if (!client?.isReady?.()) return;
 
-  const guildId = getDiscordGuildId();
   const now = getSaoPauloParts();
-  const docs = await MessageSchedule.find({ guildId, enabled: true }).lean();
+  let docs = [];
+  try {
+    docs = await MessageSchedule.find({ enabled: true }).lean();
+  } catch (error) {
+    console.error('[Corvo] Falha ao verificar mensagens agendadas no MongoDB:', error.message ?? error);
+    return;
+  }
 
   for (const doc of docs) {
+    if (!client.guilds.cache.has(doc.guildId)) continue;
     const item = toPublicItem(doc);
     if (!matchesScheduleSlot(item, now)) continue;
     if (item.lastRunKey === now.runKey) continue;

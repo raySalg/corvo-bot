@@ -10,10 +10,12 @@ services:
       - key: DISCORD_TOKEN
         sync: false
       - key: DISCORD_CLIENT_ID
-        value: "1517984369120378980"
+        sync: false
       - key: DISCORD_PUBLIC_KEY
         sync: false
       - key: DISCORD_GUILD_ID
-        value: "1535764009515491458"
+        sync: false
       - key: MONGODB_URI
+        sync: false
+      - key: GEMINI_API_KEY
         sync: false

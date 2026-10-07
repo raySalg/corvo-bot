@@ -19,18 +19,25 @@ const body = [...commands.values()].map((command) => command.data.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(token);
 
+const isGlobalDeploy = process.argv.includes('--global') || process.env.DEPLOY_GLOBAL === 'true' || !guildId;
+
 async function deploy() {
   try {
     const botUser = await rest.get(Routes.user('@me'));
     console.log(`[Corvo] Token válido. Bot autenticado como ${botUser.username}#${botUser.discriminator} (${botUser.id}).`);
 
-    if (botUser.id !== clientId) {
+    const effectiveClientId = clientId || botUser.id;
+
+    if (clientId && botUser.id !== clientId) {
       console.warn(
-        `[Corvo] Aviso: DISCORD_CLIENT_ID (${clientId}) difere do ID do bot (${botUser.id}). Use o Application ID correto.`,
+        `[Corvo] Aviso: DISCORD_CLIENT_ID (${clientId}) difere do ID do bot (${botUser.id}). Usando ${effectiveClientId}.`,
       );
     }
 
-    if (guildId) {
+    const inviteUrl = `https://discord.com/api/oauth2/authorize?client_id=${effectiveClientId}&permissions=2147485696&scope=bot%20applications.commands`;
+    console.log(`[Corvo] Link para convidar o bot em qualquer servidor:\n  ${inviteUrl}`);
+
+    if (!isGlobalDeploy && guildId) {
       const guilds = await rest.get(Routes.userGuilds());
       const isInGuild = guilds.some((guild) => guild.id === guildId);
 
@@ -38,45 +45,35 @@ async function deploy() {
         console.error(`[Corvo] 50001 Missing Access — o bot não está no servidor ${guildId}.`);
         console.error('[Corvo] Como corrigir:');
         console.error('  1. Convide o bot para o servidor usando este link:');
-        console.error(
-          `     https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=2147485696&scope=bot%20applications.commands&guild_id=${guildId}`,
-        );
-        console.error('  2. Confirme que DISCORD_GUILD_ID é o ID do MESMO servidor');
-        console.error('  3. Salve no Render e faça Manual Deploy');
+        console.error(`     ${inviteUrl}&guild_id=${guildId}`);
+        console.error('  2. Confirme que DISCORD_GUILD_ID é o ID do servidor correto.');
+        console.error('  3. Ou remova DISCORD_GUILD_ID / use npm run deploy-commands:global para registrar globalmente.');
         console.warn('[Corvo] O bot será iniciado mesmo assim; os comandos podem não funcionar até o convite.');
         return;
       }
 
       console.log(`[Corvo] Registrando ${body.length} comandos no servidor ${guildId}...`);
-      await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body });
-      console.log('[Corvo] Comandos registrados no servidor (instantâneo).');
+      await rest.put(Routes.applicationGuildCommands(effectiveClientId, guildId), { body });
+      console.log('[Corvo] Comandos registrados no servidor específico (instantâneo).');
     } else {
-      console.log(`[Corvo] Registrando ${body.length} comandos globalmente...`);
-      await rest.put(Routes.applicationCommands(clientId), { body });
-      console.log('[Corvo] Comandos globais registrados (podem levar até 1 hora para aparecer).');
+      console.log(`[Corvo] Registrando ${body.length} comandos globalmente para todos os servidores...`);
+      await rest.put(Routes.applicationCommands(effectiveClientId), { body });
+      console.log('[Corvo] Comandos globais registrados com sucesso! (Disponíveis em qualquer servidor onde o bot for adicionado).');
     }
   } catch (error) {
     if (error.status === 401) {
       console.error('[Corvo] 401 Unauthorized — o DISCORD_TOKEN está incorreto ou expirou.');
-      console.error('[Corvo] Como corrigir no Render:');
+      console.error('[Corvo] Como corrigir:');
       console.error('  1. Discord Developer Portal → sua aplicação → Bot → Reset Token');
-      console.error('  2. Copie o **Bot Token** (formato XXXX.XXXX.XXXX — NÃO use o OAuth Client Secret)');
-      console.error('  3. Render → Environment → DISCORD_TOKEN → cole o token sem aspas');
-      console.error('  4. Salve e faça Manual Deploy');
+      console.error('  2. Copie o Bot Token e atualize DISCORD_TOKEN no seu arquivo .env ou no painel de hospedagem.');
     } else if (error.code === 50001 || error.status === 403) {
       console.error('[Corvo] 50001 Missing Access — o bot não tem acesso ao servidor informado.');
-      console.error('[Corvo] Como corrigir:');
-      console.error('  1. Convide o bot para o servidor:');
-      console.error(
-        `     https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=2147485696&scope=bot%20applications.commands&guild_id=${guildId || ''}`,
-      );
-      console.error(`  2. Verifique se DISCORD_GUILD_ID (${guildId || 'não definido'}) é o servidor correto`);
-      console.error('  3. No Discord: clique direito no servidor → Copiar ID (modo desenvolvedor ativo)');
+      console.error('[Corvo] Verifique se o bot foi convidado e se DISCORD_GUILD_ID está correto.');
     } else {
       console.error('[Corvo] Erro ao registrar comandos:', error);
     }
 
-    console.warn('[Corvo] Deploy de comandos falhou; o bot será iniciado mesmo assim.');
+    console.warn('[Corvo] Deploy de comandos finalizado com aviso; o bot será iniciado.');
   }
 }
 

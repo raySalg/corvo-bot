@@ -1,13 +1,19 @@
-/** Credenciais do app Corvo (Developer Portal). */
-const DISCORD_PUBLIC_KEY =
-  'd55e326d0827adeb24bb17e87d63886d028a557991757e07b764a94b4e9a7c94';
-
-const DISCORD_CLIENT_ID = '1517984369120378980';
-
-const DISCORD_GUILD_ID = '1535764009515491458';
+/**
+ * Extrai o Client ID (Application ID) a partir do primeiro segmento base64 do Bot Token do Discord.
+ * Em tokens de bot do Discord, a primeira parte antes do primeiro ponto é sempre o Snowflake ID em base64.
+ */
+function extractClientIdFromToken(token) {
+  if (!token || !token.includes('.')) return null;
+  try {
+    const raw = Buffer.from(token.split('.')[0], 'base64').toString('utf8');
+    return /^\d{17,20}$/.test(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
 
 function getDiscordPublicKey() {
-  return process.env.DISCORD_PUBLIC_KEY?.trim() || DISCORD_PUBLIC_KEY;
+  return process.env.DISCORD_PUBLIC_KEY?.trim() || '';
 }
 
 function getDiscordToken() {
@@ -15,19 +21,19 @@ function getDiscordToken() {
 }
 
 function getDiscordClientId() {
-  return process.env.DISCORD_CLIENT_ID?.trim() || DISCORD_CLIENT_ID;
+  const fromEnv = process.env.DISCORD_CLIENT_ID?.trim();
+  if (fromEnv) return fromEnv;
+  return extractClientIdFromToken(getDiscordToken()) || '';
 }
 
 function getDiscordGuildId() {
-  return process.env.DISCORD_GUILD_ID?.trim() || DISCORD_GUILD_ID;
+  return process.env.DISCORD_GUILD_ID?.trim() || '';
 }
 
 module.exports = {
-  DISCORD_PUBLIC_KEY,
-  DISCORD_CLIENT_ID,
-  DISCORD_GUILD_ID,
   getDiscordPublicKey,
   getDiscordToken,
   getDiscordClientId,
   getDiscordGuildId,
 };
+

@@ -14,7 +14,7 @@ function validateDiscordEnv() {
   }
 
   if (!clientId) {
-    errors.push('DISCORD_CLIENT_ID está vazio.');
+    errors.push('DISCORD_CLIENT_ID não configurado e não foi possível inferir do DISCORD_TOKEN.');
   } else if (!/^\d{17,20}$/.test(clientId)) {
     errors.push('DISCORD_CLIENT_ID deve ser numérico (Application ID).');
   }

@@ -13,7 +13,10 @@ module.exports = {
     if (!(await requireAdmin(interaction))) return;
 
     try {
-      const result = await runScheduledAiAnalysis(interaction.client, { manual: true });
+      const result = await runScheduledAiAnalysis(interaction.client, {
+        manual: true,
+        guildId: interaction.guildId,
+      });
       await sendEphemeral(
         interaction,
         `### Análise IA concluída\n` +
