@@ -8,6 +8,7 @@ const DEFAULT_OPENROUTER_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free';
  */
 const OPENROUTER_MODEL_FALLBACKS = [
   'nvidia/nemotron-3-super-120b-a12b:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
   'nvidia/nemotron-3-ultra-550b-a55b:free',
   'nvidia/nemotron-3.5-lightning:free',
   'google/gemma-4-31b-it:free',
