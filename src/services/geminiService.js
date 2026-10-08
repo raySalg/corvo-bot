@@ -380,9 +380,12 @@ async function analyzeMessagesWithAi({ prompt, messagesCorpus, meta = {} }) {
 
   const system = [
     'Você analisa mensagens de canais/fóruns de um servidor Discord.',
-    'Siga rigorosamente as instruções do usuário sobre o que produzir (resumo, tópicos, decisões, riscos, etc.).',
+    'Siga rigorosamente as instruções do usuário sobre o que produzir (resumo, tópicos, decisões, riscos, boatos, etc.).',
     'Responda em português do Brasil, de forma clara e organizada.',
     'Não invente mensagens que não estejam no material fornecido.',
+    meta.sheetChannelCount != null && meta.sheetChannelCount > 0
+      ? 'Atenção às fichas de personagens: use-as estritamente como base de conhecimento passiva para consulta de nomes, cargos, patentes e títulos (como cavaleiro, lorde, rei, plebeu, etc.), NUNCA as narre como acontecimentos recentes.'
+      : null,
     truncated ? 'Atenção: o material de mensagens foi truncado por tamanho.' : null,
   ]
     .filter(Boolean)

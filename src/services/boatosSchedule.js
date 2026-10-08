@@ -14,7 +14,7 @@ const { acquireJobLock, releaseJobLock } = require('./jobLock');
 const BoatosSchedule = require('../models/BoatosSchedule');
 
 const DEFAULT_BOATOS_PROMPT =
-  'Com base nas conversas e acontecimentos dos canais selecionados e utilizando o contexto das fichas de personagens (títulos, status, cargos como cavaleiros, lordes, reis, plebeus, etc.), crie um jornal/boletim de boatos, intrigas, rumores e fofocas no tom do servidor, em estilo narrativo imersivo e bem-humorado.';
+  'Com base estritamente nas conversas e acontecimentos dos canais de origem, crie um jornal/boletim de boatos, intrigas, rumores e fofocas no tom do servidor. ATENÇÃO: As fichas de personagens fornecidas são apenas uma base de conhecimento passiva para você consultar quem é quem (títulos como cavaleiro, lorde, rei, plebeu, status, cargos e vínculos); NÃO narre as fichas em si como se fossem acontecimentos recentes.';
 
 const DEFAULT_BOATOS = {
   enabled: false,
@@ -317,10 +317,12 @@ async function buildBoatosCorpus(client, config, targetGuildId = null) {
     });
     corpusBlocks.push(
       `# ==========================================================================\n` +
-      `# FICHAS DE PERSONAGENS / STATUS / TÍTULOS / CARGOS (HISTÓRICO COMPLETO)\n` +
-      `# ATENÇÃO IA: Use este material como guia permanente de quem é cada personagem,\n` +
-      `# seus títulos/patentes (ex: cavaleiro, lorde, rei, plebeu, mago, etc.), classe,\n` +
-      `# histórico, linhagem e relacionamentos.\n` +
+      `# BASE DE CONHECIMENTO PASSIVA: FICHAS DE PERSONAGENS (APENAS PARA CONSULTA)\n` +
+      `# INSTRUÇÃO CRÍTICA PARA A IA:\n` +
+      `# - Este bloco NÃO é material de narração nem acontecimentos recentes.\n` +
+      `# - Use este bloco EXCLUSIVAMENTE como base de conhecimento passiva para consultar quem é cada personagem,\n` +
+      `#   seus títulos/patentes (ex: cavaleiro, lorde, rei, plebeu, mago, nobre, etc.), linhagem e status social.\n` +
+      `# - NÃO narre a criação de fichas ou atributos/históricos destas fichas como se fossem notícias ou boatos recentes.\n` +
       `# ==========================================================================\n\n` +
       sheetTxt,
     );
@@ -335,8 +337,12 @@ async function buildBoatosCorpus(client, config, targetGuildId = null) {
 
   corpusBlocks.push(
     `# ==========================================================================\n` +
-    `# ACONTECIMENTOS E CONVERSAS RECENTES (PERÍODO: ${fromRaw} → ${toRaw})\n` +
-    `# Fatos ocorridos, interações e diálogos recentes que servem de matéria-prima para os boatos.\n` +
+    `# MATERIAL ATIVO DE NARRAÇÃO: CONVERSAS E ACONTECIMENTOS RECENTES (${fromRaw} → ${toRaw})\n` +
+    `# INSTRUÇÃO CRÍTICA PARA A IA:\n` +
+    `# - Todos os boatos, rumores, fofocas e intrigas DEVEM ser gerados EXCLUSIVAMENTE a partir\n` +
+    `#   das conversas, interações e diálogos ocorridos neste bloco recente.\n` +
+    `# - Ao narrar os acontecimentos deste bloco, utilize a base de conhecimento de fichas acima\n` +
+    `#   para identificar e qualificar corretamente os personagens envolvidos pelos seus devidos títulos.\n` +
     `# ==========================================================================\n\n` +
     sourceTxt,
   );
