@@ -6,10 +6,19 @@ const {
   getGeminiGenerateUrl,
 } = require('../constants/gemini');
 
+const {
+  OPENROUTER_CHAT_URL,
+  getOpenRouterApiKey,
+  getOpenRouterModel,
+  getOpenRouterModelChain,
+  getAiProvider,
+} = require('../constants/openrouter');
+
 const MAX_CONTEXT_CHARS = 100_000;
 
-/** Modelo que funcionou por último (evita insistir no que acabou de estourar cota). */
-let stickyModel = null;
+/** Modelo que funcionou por último no Gemini / OpenRouter */
+let stickyGeminiModel = null;
+let stickyOpenRouterModel = null;
 
 function truncateMessagesCorpus(text) {
   if (text.length <= MAX_CONTEXT_CHARS) {
@@ -31,15 +40,28 @@ function extractGeminiText(data) {
     .trim();
 }
 
+function extractOpenRouterText(data) {
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content === 'string') return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => (typeof part === 'string' ? part : part?.text || ''))
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+  return '';
+}
+
 function isRetryableModelError(status, data) {
   const msg = String(data?.error?.message || data?.message || '').toLowerCase();
   const statusName = String(data?.error?.status || '').toUpperCase();
 
-  if (status === 429 || status === 503) return true;
+  if (status === 429 || status === 503 || status === 502 || status === 504) return true;
   if (statusName === 'RESOURCE_EXHAUSTED' || statusName === 'UNAVAILABLE') return true;
   if (status === 404 && /no longer available|not found|is not found/i.test(msg)) return true;
   if (
-    /quota|rate limit|rate_limit|resource.?exhausted|too many requests|exceeded your current|limit:\s*0|exhausted/i.test(
+    /quota|rate limit|rate_limit|resource.?exhausted|too many requests|exceeded your current|limit:\s*0|exhausted|provider error/i.test(
       msg,
     )
   ) {
@@ -48,7 +70,127 @@ function isRetryableModelError(status, data) {
   return false;
 }
 
-async function generateWithModel(apiKey, model, { system, userContent, temperature = 0.3 }) {
+// ---------------------------------------------------------------------------
+// OpenRouter API
+// ---------------------------------------------------------------------------
+
+async function generateWithOpenRouterModel(apiKey, model, { system, userContent, temperature = 0.3 }) {
+  const response = await fetch(OPENROUTER_CHAT_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://github.com/raySalg/sete-bot',
+      'X-Title': 'Corvo Discord Bot',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: userContent },
+      ],
+      temperature,
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  return { response, data };
+}
+
+async function callOpenRouterWithRetry({ system, userContent, temperature = 0.3 }) {
+  const apiKey = getOpenRouterApiKey();
+  if (!apiKey) {
+    throw Object.assign(new Error('OPENROUTER_API_KEY não configurada.'), { status: 500 });
+  }
+
+  const preferred = stickyOpenRouterModel || getOpenRouterModel();
+  const chain = getOpenRouterModelChain(preferred);
+  const attempts = [];
+  let lastError = null;
+
+  for (let i = 0; i < chain.length; i += 1) {
+    const model = chain[i];
+    let response;
+    let data;
+
+    try {
+      ({ response, data } = await generateWithOpenRouterModel(apiKey, model, { system, userContent, temperature }));
+    } catch (error) {
+      attempts.push({ model, ok: false, detail: error.message ?? String(error) });
+      console.warn(`[Corvo] OpenRouter falha de rede em ${model}: ${error.message ?? error}`);
+      lastError = Object.assign(new Error(`OpenRouter (${model}): ${error.message ?? error}`), {
+        status: 502,
+        model,
+      });
+      if (i < chain.length - 1) continue;
+      throw lastError;
+    }
+
+    if (!response.ok) {
+      const detail = data?.error?.message || data?.message || `HTTP ${response.status}`;
+      const err = Object.assign(new Error(`OpenRouter (${model}): ${detail}`), {
+        status: 502,
+        httpStatus: response.status,
+        model,
+      });
+      attempts.push({ model, ok: false, status: response.status, detail });
+
+      if (isRetryableModelError(response.status, data) && i < chain.length - 1) {
+        console.warn(
+          `[Corvo] OpenRouter indisponível/limite em ${model} (${response.status}). Tentando próximo modelo…`,
+        );
+        if (stickyOpenRouterModel === model) stickyOpenRouterModel = null;
+        lastError = err;
+        continue;
+      }
+      throw err;
+    }
+
+    const content = extractOpenRouterText(data);
+    if (!content) {
+      const err = Object.assign(new Error(`OpenRouter (${model}) não retornou conteúdo útil.`), {
+        status: 502,
+        model,
+      });
+      attempts.push({ model, ok: false, detail: 'empty' });
+      if (i < chain.length - 1) {
+        console.warn(`[Corvo] OpenRouter sem conteúdo útil em ${model}. Tentando próximo modelo…`);
+        lastError = err;
+        continue;
+      }
+      throw err;
+    }
+
+    const usedFallback = model !== getOpenRouterModel() || attempts.some((a) => !a.ok);
+    stickyOpenRouterModel = model;
+    if (usedFallback) {
+      console.log(
+        `[Corvo] OpenRouter OK com modelo ${model}${attempts.length ? ` após ${attempts.length} falha(s)` : ''}.`,
+      );
+    } else {
+      console.log(`[Corvo] OpenRouter OK com modelo ${model}.`);
+    }
+
+    return {
+      content,
+      model,
+      provider: 'openrouter',
+      fallbackUsed: usedFallback,
+      attempts,
+    };
+  }
+
+  throw (
+    lastError ||
+    Object.assign(new Error('Nenhum modelo OpenRouter disponível no momento.'), { status: 502 })
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Google Gemini API
+// ---------------------------------------------------------------------------
+
+async function generateWithGeminiModel(apiKey, model, { system, userContent, temperature = 0.3 }) {
   const response = await fetch(getGeminiGenerateUrl(model), {
     method: 'POST',
     headers: {
@@ -82,7 +224,7 @@ async function callGeminiWithRetry({ system, userContent, temperature = 0.3 }) {
     throw Object.assign(new Error('GEMINI_API_KEY não configurada.'), { status: 500 });
   }
 
-  const preferred = stickyModel || getGeminiModel();
+  const preferred = stickyGeminiModel || getGeminiModel();
   const chain = getGeminiModelChain(preferred);
   const attempts = [];
   let lastError = null;
@@ -93,7 +235,7 @@ async function callGeminiWithRetry({ system, userContent, temperature = 0.3 }) {
     let data;
 
     try {
-      ({ response, data } = await generateWithModel(apiKey, model, { system, userContent, temperature }));
+      ({ response, data } = await generateWithGeminiModel(apiKey, model, { system, userContent, temperature }));
     } catch (error) {
       attempts.push({ model, ok: false, detail: error.message ?? String(error) });
       console.warn(`[Corvo] Gemini falha de rede em ${model}: ${error.message ?? error}`);
@@ -118,7 +260,7 @@ async function callGeminiWithRetry({ system, userContent, temperature = 0.3 }) {
         console.warn(
           `[Corvo] Gemini limite/indisponível em ${model} (${response.status}). Tentando próximo modelo…`,
         );
-        if (stickyModel === model) stickyModel = null;
+        if (stickyGeminiModel === model) stickyGeminiModel = null;
         lastError = err;
         continue;
       }
@@ -146,17 +288,20 @@ async function callGeminiWithRetry({ system, userContent, temperature = 0.3 }) {
     }
 
     const usedFallback = model !== getGeminiModel() || attempts.some((a) => !a.ok);
-    stickyModel = model;
+    stickyGeminiModel = model;
     if (usedFallback) {
       console.log(
         `[Corvo] Gemini OK com modelo ${model}${attempts.length ? ` após ${attempts.length} falha(s)` : ''}.`,
       );
+    } else {
+      console.log(`[Corvo] Gemini OK com modelo ${model}.`);
     }
 
     return {
       content,
       model: data.modelVersion || model,
       requestedModel: model,
+      provider: 'gemini',
       projectId: getGeminiProjectId(),
       fallbackUsed: usedFallback,
       attempts,
@@ -169,12 +314,54 @@ async function callGeminiWithRetry({ system, userContent, temperature = 0.3 }) {
   );
 }
 
-async function analyzeMessagesWithGemini({ prompt, messagesCorpus, meta = {} }) {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw Object.assign(new Error('GEMINI_API_KEY não configurada.'), { status: 500 });
+// ---------------------------------------------------------------------------
+// Unified AI Dispatcher (OpenRouter / Gemini com Fallback Cruzado)
+// ---------------------------------------------------------------------------
+
+async function callAiWithRetry({ system, userContent, temperature = 0.3 }) {
+  const provider = getAiProvider();
+  const hasOpenRouterKey = Boolean(getOpenRouterApiKey());
+  const hasGeminiKey = Boolean(getGeminiApiKey());
+
+  if (!hasOpenRouterKey && !hasGeminiKey) {
+    throw Object.assign(
+      new Error('Nenhuma chave de IA configurada. Defina OPENROUTER_API_KEY ou GEMINI_API_KEY no .env.'),
+      { status: 500 },
+    );
   }
 
+  if (provider === 'openrouter' && hasOpenRouterKey) {
+    try {
+      return await callOpenRouterWithRetry({ system, userContent, temperature });
+    } catch (err) {
+      if (hasGeminiKey) {
+        console.warn(`[Corvo] OpenRouter falhou (${err.message}). Tentando fallback para Gemini…`);
+        return await callGeminiWithRetry({ system, userContent, temperature });
+      }
+      throw err;
+    }
+  }
+
+  if (hasGeminiKey) {
+    try {
+      return await callGeminiWithRetry({ system, userContent, temperature });
+    } catch (err) {
+      if (hasOpenRouterKey) {
+        console.warn(`[Corvo] Gemini falhou (${err.message}). Tentando fallback para OpenRouter…`);
+        return await callOpenRouterWithRetry({ system, userContent, temperature });
+      }
+      throw err;
+    }
+  }
+
+  return await callOpenRouterWithRetry({ system, userContent, temperature });
+}
+
+// ---------------------------------------------------------------------------
+// Business Operations
+// ---------------------------------------------------------------------------
+
+async function analyzeMessagesWithAi({ prompt, messagesCorpus, meta = {} }) {
   const userPrompt = String(prompt || '').trim();
   if (!userPrompt) {
     throw Object.assign(new Error('Escreva um prompt para orientar a IA.'), { status: 400 });
@@ -208,7 +395,7 @@ async function analyzeMessagesWithGemini({ prompt, messagesCorpus, meta = {} }) 
     .filter((line) => line != null)
     .join('\n');
 
-  const result = await callGeminiWithRetry({ system, userContent });
+  const result = await callAiWithRetry({ system, userContent });
   return { ...result, truncatedInput: truncated };
 }
 
@@ -251,7 +438,7 @@ function normalizeClimateSeason(value) {
   return 'autumn';
 }
 
-async function generateClimateWithGemini({ season, promptExtra, previousClimate, generatedAtLabel }) {
+async function generateClimateWithAi({ season, promptExtra, previousClimate, generatedAtLabel }) {
   const normalizedSeason = normalizeClimateSeason(season);
   const seasonLabel = SEASON_LABELS[normalizedSeason];
 
@@ -284,7 +471,7 @@ async function generateClimateWithGemini({ season, promptExtra, previousClimate,
     .filter((line) => line != null)
     .join('\n');
 
-  return callGeminiWithRetry({ system, userContent, temperature: 0.65 });
+  return callAiWithRetry({ system, userContent, temperature: 0.65 });
 }
 
 function splitDiscordContent(text, maxLen = 1900) {
@@ -334,8 +521,13 @@ async function sendAsDiscordMessages(channel, { header, content }) {
 }
 
 module.exports = {
-  analyzeMessagesWithGemini,
-  generateClimateWithGemini,
+  callAiWithRetry,
+  callOpenRouterWithRetry,
+  callGeminiWithRetry,
+  analyzeMessagesWithAi,
+  analyzeMessagesWithGemini: analyzeMessagesWithAi, // Alias retrocompatível
+  generateClimateWithAi,
+  generateClimateWithGemini: generateClimateWithAi, // Alias retrocompatível
   normalizeClimateSeason,
   SEASON_LABELS,
   splitDiscordContent,

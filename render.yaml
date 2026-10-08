@@ -19,3 +19,9 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        sync: false
+      - key: AI_PROVIDER
+        sync: false
