@@ -23,7 +23,7 @@ function getOpenRouterApiKey() {
 }
 
 function getOpenRouterModel() {
-  return process.env.OPENROUTER_MODEL?.trim() || DEFAULT_OPENROUTER_MODEL;
+  return process.env.OPENROUTER_MODEL?.trim() || OPENROUTER_MODEL_FALLBACKS[0];
 }
 
 function getOpenRouterFallbackModels() {
@@ -34,7 +34,12 @@ function getOpenRouterFallbackModels() {
 }
 
 function getOpenRouterModelChain(preferred = getOpenRouterModel()) {
-  return [...new Set([preferred, ...getOpenRouterFallbackModels()].filter(Boolean))];
+  const custom = process.env.OPENROUTER_MODEL?.trim();
+  const fallbacks = getOpenRouterFallbackModels();
+  if (custom) {
+    return [...new Set([custom, ...fallbacks])];
+  }
+  return [...new Set([preferred, ...fallbacks])];
 }
 
 function getAiProvider() {

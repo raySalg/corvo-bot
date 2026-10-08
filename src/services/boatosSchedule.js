@@ -9,6 +9,9 @@ const { analyzeMessagesWithGemini, sendAsDiscordMessages } = require('./geminiSe
 const { acquireJobLock, releaseJobLock } = require('./jobLock');
 const BoatosSchedule = require('../models/BoatosSchedule');
 
+const DEFAULT_BOATOS_PROMPT =
+  'Com base nas conversas e acontecimentos dos canais selecionados, crie um jornal/boletim de boatos, intrigas, rumores e fofocas no tom do servidor, em estilo narrativo imersivo e bem-humorado.';
+
 const DEFAULT_BOATOS = {
   enabled: false,
   sourceChannelIds: [],
@@ -16,7 +19,7 @@ const DEFAULT_BOATOS = {
   dateMode: 'range',
   dateFrom: null,
   dateTo: null,
-  prompt: '',
+  prompt: DEFAULT_BOATOS_PROMPT,
   mentionRoleId: null,
   hour: 0,
   minute: 0,
@@ -154,7 +157,7 @@ function validateBoatosInput(body) {
   const dateMode = normalizeDateMode(body.dateMode);
   const dateFrom = body.dateFrom ? String(body.dateFrom).trim() : null;
   const dateTo = body.dateTo ? String(body.dateTo).trim() : null;
-  const prompt = body.prompt != null ? String(body.prompt) : '';
+  const prompt = body.prompt != null && String(body.prompt).trim() ? String(body.prompt).trim() : DEFAULT_BOATOS_PROMPT;
   const mentionRoleId = body.mentionRoleId ? String(body.mentionRoleId) : null;
   const hour = Number(body.hour);
   const minute = Number(body.minute);
@@ -165,9 +168,6 @@ function validateBoatosInput(body) {
   }
   if (enabled && !destinationChannelId) {
     throw Object.assign(new Error('Selecione o canal de destino dos boatos.'), { status: 400 });
-  }
-  if (enabled && !prompt.trim()) {
-    throw Object.assign(new Error('Escreva um prompt para orientar a geração de boatos.'), { status: 400 });
   }
   if (dateMode === 'range' && (enabled || dateFrom || dateTo)) {
     if (!dateFrom || !dateTo || !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
@@ -220,9 +220,7 @@ async function runBoatosAnalysis(client, { manual = false, guildId: explicitGuil
       status: 400,
     });
   }
-  if (!String(config.prompt || '').trim()) {
-    throw Object.assign(new Error('Defina o prompt dos boatos.'), { status: 400 });
-  }
+  const effectivePrompt = String(config.prompt || '').trim() || DEFAULT_BOATOS_PROMPT;
   if (normalizeDateMode(config.dateMode) !== 'today' && (!config.dateFrom || !config.dateTo)) {
     throw Object.assign(new Error('Agendamento incompleto: defina o período De/Até das mensagens.'), {
       status: 400,
@@ -240,8 +238,14 @@ async function runBoatosAnalysis(client, { manual = false, guildId: explicitGuil
     }
 
     const total = sections.reduce((sum, section) => sum + section.messages.length, 0);
+    if (total === 0) {
+      throw new Error(
+        'Nenhuma mensagem encontrada nos canais de origem selecionados para o período. Escolha canais ativos ou ajuste a data De/Até.',
+      );
+    }
+
     const analysis = await analyzeMessagesWithGemini({
-      prompt: config.prompt,
+      prompt: effectivePrompt,
       messagesCorpus: txt,
       meta: {
         from: fromRaw,
