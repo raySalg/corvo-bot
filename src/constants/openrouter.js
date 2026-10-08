@@ -3,16 +3,19 @@ const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
 
 /**
- * Modelos de fallback gratuitos no OpenRouter caso o modelo principal atinja limite ou falhe.
+ * Modelos de fallback gratuitos no OpenRouter caso o modelo principal atinja limite,
+ * fique sem endpoints ou falhe temporariamente.
  * Override via env: OPENROUTER_MODEL_FALLBACKS=modelo1,modelo2,...
  */
 const OPENROUTER_MODEL_FALLBACKS = [
   'meta-llama/llama-3.3-70b-instruct:free',
-  'google/gemini-2.0-flash-exp:free',
   'deepseek/deepseek-chat:free',
-  'nvidia/llama-3.1-nemotron-70b-instruct:free',
-  'mistralai/mistral-7b-instruct:free',
+  'google/gemini-2.0-flash-exp:free',
+  'deepseek/deepseek-r1:free',
+  'google/gemini-2.0-flash-thinking-exp:free',
   'qwen/qwen-2.5-72b-instruct:free',
+  'mistralai/mistral-7b-instruct:free',
+  'meta-llama/llama-3.2-3b-instruct:free',
 ];
 
 function getOpenRouterApiKey() {

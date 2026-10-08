@@ -54,18 +54,20 @@ function extractOpenRouterText(data) {
 }
 
 function isRetryableModelError(status, data) {
-  const msg = String(data?.error?.message || data?.message || '').toLowerCase();
+  const msg = String(data?.error?.message || data?.message || data?.error || '').toLowerCase();
   const statusName = String(data?.error?.status || '').toUpperCase();
 
-  if (status === 429 || status === 503 || status === 502 || status === 504) return true;
+  if (status === 429 || status === 503 || status === 502 || status === 504 || status === 408) return true;
   if (statusName === 'RESOURCE_EXHAUSTED' || statusName === 'UNAVAILABLE') return true;
-  if (status === 404 && /no longer available|not found|is not found/i.test(msg)) return true;
   if (
-    /quota|rate limit|rate_limit|resource.?exhausted|too many requests|exceeded your current|limit:\s*0|exhausted|provider error/i.test(
+    /no endpoints|no available providers|not found|no longer available|temporarily unavailable|rate limit|quota|resource.?exhausted|too many requests|limit:\s*0|overloaded|provider error|capacity|busy/i.test(
       msg,
     )
   ) {
     return true;
+  }
+  if (status === 404 || status === 400) {
+    if (/endpoint|model|not found|unavailable|provider/i.test(msg)) return true;
   }
   return false;
 }
