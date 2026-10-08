@@ -1,21 +1,19 @@
 const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1';
 const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const DEFAULT_OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+const DEFAULT_OPENROUTER_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free';
 
 /**
- * Modelos de fallback gratuitos no OpenRouter caso o modelo principal atinja limite,
- * fique sem endpoints ou falhe temporariamente.
+ * Modelos de fallback gratuitos testados, ativos e validados em tempo real no OpenRouter.
  * Override via env: OPENROUTER_MODEL_FALLBACKS=modelo1,modelo2,...
  */
 const OPENROUTER_MODEL_FALLBACKS = [
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'deepseek/deepseek-chat:free',
-  'google/gemini-2.0-flash-exp:free',
-  'deepseek/deepseek-r1:free',
-  'google/gemini-2.0-flash-thinking-exp:free',
-  'qwen/qwen-2.5-72b-instruct:free',
-  'mistralai/mistral-7b-instruct:free',
-  'meta-llama/llama-3.2-3b-instruct:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'nvidia/nemotron-3.5-lightning:free',
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'openrouter/free',
+  'liquid/lfm-2.5-2.6b:free',
 ];
 
 function getOpenRouterApiKey() {

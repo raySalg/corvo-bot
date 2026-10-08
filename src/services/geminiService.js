@@ -60,14 +60,14 @@ function isRetryableModelError(status, data) {
   if (status === 429 || status === 503 || status === 502 || status === 504 || status === 408) return true;
   if (statusName === 'RESOURCE_EXHAUSTED' || statusName === 'UNAVAILABLE') return true;
   if (
-    /no endpoints|no available providers|not found|no longer available|temporarily unavailable|rate limit|quota|resource.?exhausted|too many requests|limit:\s*0|overloaded|provider error|capacity|busy/i.test(
+    /unavailable for free|paid version is available|use this slug instead|no endpoints|no available providers|not found|no longer available|temporarily unavailable|rate limit|quota|resource.?exhausted|too many requests|limit:\s*0|overloaded|provider error|capacity|busy/i.test(
       msg,
     )
   ) {
     return true;
   }
   if (status === 404 || status === 400) {
-    if (/endpoint|model|not found|unavailable|provider/i.test(msg)) return true;
+    if (/endpoint|model|not found|unavailable|provider|free/i.test(msg)) return true;
   }
   return false;
 }
@@ -116,7 +116,11 @@ async function callOpenRouterWithRetry({ system, userContent, temperature = 0.3 
     let data;
 
     try {
-      ({ response, data } = await generateWithOpenRouterModel(apiKey, model, { system, userContent, temperature }));
+      ({ response, data } = await generateWithOpenRouterModel(apiKey, model, {
+        system,
+        userContent,
+        temperature,
+      }));
     } catch (error) {
       attempts.push({ model, ok: false, detail: error.message ?? String(error) });
       console.warn(`[Corvo] OpenRouter falha de rede em ${model}: ${error.message ?? error}`);
