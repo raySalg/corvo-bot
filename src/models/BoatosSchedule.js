@@ -5,6 +5,7 @@ const boatosScheduleSchema = new mongoose.Schema(
     guildId: { type: String, required: true, unique: true, index: true },
     enabled: { type: Boolean, default: false },
     sourceChannelIds: { type: [String], default: [] },
+    characterSheetChannelIds: { type: [String], default: [] },
     destinationChannelId: { type: String, default: null },
     dateMode: { type: String, default: 'range', enum: ['range', 'today'] },
     dateFrom: { type: String, default: null },

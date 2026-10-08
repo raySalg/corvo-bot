@@ -628,6 +628,7 @@ async function startExportScheduler(client) {
 
 module.exports = {
   TIME_ZONE,
+  PER_CHANNEL_MAX,
   loadScheduleConfig,
   saveScheduleConfig,
   getScheduleConfig,
@@ -638,4 +639,7 @@ module.exports = {
   getSaoPauloParts,
   buildScheduledExport,
   normalizeDateMode,
+  resolveGuild,
+  resolveChannelsForExport,
+  resolveMessageDateBounds,
 };

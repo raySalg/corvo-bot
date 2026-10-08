@@ -1,20 +1,25 @@
 const { getDiscordGuildId } = require('../constants/discord');
 const {
   TIME_ZONE,
-  buildScheduledExport,
+  PER_CHANNEL_MAX,
   normalizeDateMode,
   getSaoPauloParts,
+  resolveGuild,
+  resolveChannelsForExport,
+  resolveMessageDateBounds,
 } = require('./exportSchedule');
+const { collectMessagesInRange, formatMultiChannelTxt } = require('../utils/messageExport');
 const { analyzeMessagesWithGemini, sendAsDiscordMessages } = require('./geminiService');
 const { acquireJobLock, releaseJobLock } = require('./jobLock');
 const BoatosSchedule = require('../models/BoatosSchedule');
 
 const DEFAULT_BOATOS_PROMPT =
-  'Com base nas conversas e acontecimentos dos canais selecionados, crie um jornal/boletim de boatos, intrigas, rumores e fofocas no tom do servidor, em estilo narrativo imersivo e bem-humorado.';
+  'Com base nas conversas e acontecimentos dos canais selecionados e utilizando o contexto das fichas de personagens (títulos, status, cargos como cavaleiros, lordes, reis, plebeus, etc.), crie um jornal/boletim de boatos, intrigas, rumores e fofocas no tom do servidor, em estilo narrativo imersivo e bem-humorado.';
 
 const DEFAULT_BOATOS = {
   enabled: false,
   sourceChannelIds: [],
+  characterSheetChannelIds: [],
   destinationChannelId: null,
   dateMode: 'range',
   dateFrom: null,
@@ -40,9 +45,11 @@ function normalizeDays(days, fallback) {
 function toPublicConfig(doc) {
   if (!doc) return { ...DEFAULT_BOATOS };
 
+  const rawSheets = doc.characterSheetChannelIds ?? doc.sheetChannelIds ?? [];
   return {
     enabled: Boolean(doc.enabled),
     sourceChannelIds: Array.isArray(doc.sourceChannelIds) ? doc.sourceChannelIds.map(String) : [],
+    characterSheetChannelIds: Array.isArray(rawSheets) ? rawSheets.map(String) : [],
     destinationChannelId: doc.destinationChannelId ? String(doc.destinationChannelId) : null,
     dateMode: normalizeDateMode(doc.dateMode),
     dateFrom: doc.dateFrom ? String(doc.dateFrom) : null,
@@ -59,12 +66,16 @@ function toPublicConfig(doc) {
 }
 
 function normalizeConfig(next = {}, base = cachedConfig || DEFAULT_BOATOS) {
+  const rawSheets = next.characterSheetChannelIds ?? next.sheetChannelIds ?? base.characterSheetChannelIds;
   return {
     ...DEFAULT_BOATOS,
     ...base,
     ...next,
     sourceChannelIds: Array.isArray(next.sourceChannelIds ?? base.sourceChannelIds)
       ? [...new Set((next.sourceChannelIds ?? base.sourceChannelIds).map(String))]
+      : [],
+    characterSheetChannelIds: Array.isArray(rawSheets)
+      ? [...new Set(rawSheets.map(String))]
       : [],
     daysOfWeek: normalizeDays(next.daysOfWeek ?? base.daysOfWeek, DEFAULT_BOATOS.daysOfWeek),
     hour: Math.min(23, Math.max(0, Number(next.hour ?? base.hour ?? 0))),
@@ -119,6 +130,7 @@ async function saveBoatosConfig(next, targetGuildId = null) {
         guildId,
         enabled: config.enabled,
         sourceChannelIds: config.sourceChannelIds,
+        characterSheetChannelIds: config.characterSheetChannelIds,
         destinationChannelId: config.destinationChannelId,
         dateMode: config.dateMode,
         dateFrom: config.dateFrom,
@@ -152,6 +164,9 @@ function validateBoatosInput(body) {
   const enabled = Boolean(body.enabled);
   const sourceChannelIds = Array.isArray(body.sourceChannelIds)
     ? [...new Set(body.sourceChannelIds.map(String).filter(Boolean))]
+    : [];
+  const characterSheetChannelIds = Array.isArray(body.characterSheetChannelIds ?? body.sheetChannelIds)
+    ? [...new Set((body.characterSheetChannelIds ?? body.sheetChannelIds).map(String).filter(Boolean))]
     : [];
   const destinationChannelId = body.destinationChannelId ? String(body.destinationChannelId) : null;
   const dateMode = normalizeDateMode(body.dateMode);
@@ -194,6 +209,7 @@ function validateBoatosInput(body) {
   return {
     enabled,
     sourceChannelIds,
+    characterSheetChannelIds,
     destinationChannelId,
     dateMode,
     dateFrom,
@@ -203,6 +219,139 @@ function validateBoatosInput(body) {
     hour,
     minute,
     daysOfWeek,
+  };
+}
+
+async function buildBoatosCorpus(client, config, targetGuildId = null) {
+  const guild = await resolveGuild(client, targetGuildId);
+  const { fromMs, toMs, fromRaw, toRaw } = resolveMessageDateBounds(config);
+
+  // 1. Canais de Acontecimentos / Origem (filtrados por período de data)
+  const sourceChannels = await resolveChannelsForExport(client, guild, config.sourceChannelIds || []);
+  if (sourceChannels.length === 0) {
+    throw new Error('Nenhum canal/tópico de origem válido para coletar acontecimentos.');
+  }
+
+  const sourceSections = [];
+  for (const channel of sourceChannels) {
+    const label =
+      channel.isThread?.() && channel.parent?.name
+        ? `${channel.parent.name} › ${channel.name}`
+        : channel.name;
+
+    try {
+      const messages = await collectMessagesInRange(channel, {
+        fromMs,
+        toMs,
+        maxMessages: PER_CHANNEL_MAX,
+      });
+      sourceSections.push({
+        channelName: label,
+        messages,
+        truncated: messages.length >= PER_CHANNEL_MAX,
+      });
+    } catch (error) {
+      console.error(`[Corvo] Erro ao coletar #${label} para boatos:`, error.message ?? error);
+      sourceSections.push({
+        channelName: label,
+        messages: [],
+        truncated: false,
+        error: error.message ?? String(error),
+      });
+    }
+  }
+
+  const totalSource = sourceSections.reduce((sum, s) => sum + s.messages.length, 0);
+  if (totalSource === 0) {
+    throw new Error(
+      'Nenhuma mensagem encontrada nos canais de origem no período selecionado. Escolha canais com mensagens ou ajuste o período De/Até.',
+    );
+  }
+
+  // 2. Canais de Fichas de Personagens (coleta TODO o histórico sem filtro de data)
+  const sheetSections = [];
+  const sheetChannelIds = config.characterSheetChannelIds || [];
+  let totalSheets = 0;
+
+  if (sheetChannelIds.length > 0) {
+    const sheetChannels = await resolveChannelsForExport(client, guild, sheetChannelIds);
+    for (const channel of sheetChannels) {
+      const label =
+        channel.isThread?.() && channel.parent?.name
+          ? `${channel.parent.name} › ${channel.name}`
+          : channel.name;
+
+      try {
+        const messages = await collectMessagesInRange(channel, {
+          fromMs: 0,
+          toMs: Date.now(),
+          maxMessages: PER_CHANNEL_MAX,
+        });
+        sheetSections.push({
+          channelName: label,
+          messages,
+          truncated: messages.length >= PER_CHANNEL_MAX,
+        });
+        totalSheets += messages.length;
+      } catch (error) {
+        console.error(`[Corvo] Erro ao coletar fichas em #${label}:`, error.message ?? error);
+        sheetSections.push({
+          channelName: label,
+          messages: [],
+          truncated: false,
+          error: error.message ?? String(error),
+        });
+      }
+    }
+  }
+
+  // 3. Montar corpus estruturado para a IA
+  const corpusBlocks = [];
+
+  if (sheetSections.length > 0 && totalSheets > 0) {
+    const sheetTxt = formatMultiChannelTxt({
+      guildName: guild.name,
+      sections: sheetSections,
+      from: 'Início dos tempos',
+      to: 'Fichas Atuais',
+    });
+    corpusBlocks.push(
+      `# ==========================================================================\n` +
+      `# FICHAS DE PERSONAGENS / STATUS / TÍTULOS / CARGOS (HISTÓRICO COMPLETO)\n` +
+      `# ATENÇÃO IA: Use este material como guia permanente de quem é cada personagem,\n` +
+      `# seus títulos/patentes (ex: cavaleiro, lorde, rei, plebeu, mago, etc.), classe,\n` +
+      `# histórico, linhagem e relacionamentos.\n` +
+      `# ==========================================================================\n\n` +
+      sheetTxt,
+    );
+  }
+
+  const sourceTxt = formatMultiChannelTxt({
+    guildName: guild.name,
+    sections: sourceSections,
+    from: fromRaw,
+    to: toRaw,
+  });
+
+  corpusBlocks.push(
+    `# ==========================================================================\n` +
+    `# ACONTECIMENTOS E CONVERSAS RECENTES (PERÍODO: ${fromRaw} → ${toRaw})\n` +
+    `# Fatos ocorridos, interações e diálogos recentes que servem de matéria-prima para os boatos.\n` +
+    `# ==========================================================================\n\n` +
+    sourceTxt,
+  );
+
+  const combinedTxt = corpusBlocks.join('\n\n\n');
+
+  return {
+    guild,
+    txt: combinedTxt,
+    sourceSections,
+    sheetSections,
+    totalSource,
+    totalSheets,
+    fromRaw,
+    toRaw,
   };
 }
 
@@ -230,18 +379,21 @@ async function runBoatosAnalysis(client, { manual = false, guildId: explicitGuil
   acquireJobLock();
 
   try {
-    const { guild, txt, sections, fromRaw, toRaw } = await buildScheduledExport(client, config, targetGuildId);
+    const {
+      guild,
+      txt,
+      sourceSections,
+      sheetSections,
+      totalSource,
+      totalSheets,
+      fromRaw,
+      toRaw,
+    } = await buildBoatosCorpus(client, config, targetGuildId);
+
     const destination = await client.channels.fetch(config.destinationChannelId).catch(() => null);
 
     if (!destination || destination.guildId !== guild.id || !destination.isTextBased?.()) {
       throw new Error('Canal de destino dos boatos inválido ou inacessível.');
-    }
-
-    const total = sections.reduce((sum, section) => sum + section.messages.length, 0);
-    if (total === 0) {
-      throw new Error(
-        'Nenhuma mensagem encontrada nos canais de origem selecionados para o período. Escolha canais ativos ou ajuste a data De/Até.',
-      );
     }
 
     const analysis = await analyzeMessagesWithGemini({
@@ -250,8 +402,10 @@ async function runBoatosAnalysis(client, { manual = false, guildId: explicitGuil
       meta: {
         from: fromRaw,
         to: toRaw,
-        channelCount: sections.length,
-        messageCount: total,
+        channelCount: sourceSections.length,
+        messageCount: totalSource,
+        sheetChannelCount: sheetSections.length,
+        sheetMessageCount: totalSheets,
       },
     });
 
@@ -291,13 +445,15 @@ async function runBoatosAnalysis(client, { manual = false, guildId: explicitGuil
     }, targetGuildId);
 
     console.log(
-      `[Corvo] Boatos ${manual ? 'manual' : 'agendado'} enviado para #${destination.name} (${total} msgs → ${messageCount} mensagem(ns)).`,
+      `[Corvo] Boatos ${manual ? 'manual' : 'agendado'} enviado para #${destination.name} (${totalSource} msgs origem + ${totalSheets} msgs fichas → ${messageCount} msg(s)).`,
     );
 
     return {
       ok: true,
-      total,
-      channels: sections.length,
+      total: totalSource,
+      sheetTotal: totalSheets,
+      channels: sourceSections.length,
+      sheetChannels: sheetSections.length,
       destinationId: destination.id,
       destinationName: destination.name,
       messageCount,
@@ -353,15 +509,17 @@ async function startBoatosScheduler(client) {
   tickTimer = setInterval(() => {
     void tickBoatos(client);
   }, 20_000);
-  console.log('[Corvo] Agendador de boatos ativo (MongoDB + America/Sao_Paulo + Gemini).');
+  console.log('[Corvo] Agendador de boatos ativo (MongoDB + America/Sao_Paulo + IA).');
 }
 
 module.exports = {
   TIME_ZONE,
+  DEFAULT_BOATOS_PROMPT,
   loadBoatosConfig,
   saveBoatosConfig,
   getBoatosConfig,
   validateBoatosInput,
+  buildBoatosCorpus,
   runBoatosAnalysis,
   startBoatosScheduler,
 };

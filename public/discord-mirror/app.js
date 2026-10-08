@@ -83,6 +83,7 @@ const els = {
   boatosForm: document.getElementById('boatos-form'),
   boatosEnabled: document.getElementById('boatos-enabled'),
   boatosSources: document.getElementById('boatos-sources'),
+  boatosSheetSources: document.getElementById('boatos-sheet-sources'),
   boatosDestination: document.getElementById('boatos-destination'),
   boatosMentionRole: document.getElementById('boatos-mention-role'),
   boatosDateFrom: document.getElementById('boatos-date-from'),
@@ -575,9 +576,10 @@ function renderSchedulePickers(selectedIds = [], destinationId = null, aiDestina
   els.scheduleAiDestination.innerHTML = `<option value="">Selecione…</option>${channelSelectOptions(aiDestinationId || destinationId)}`;
 }
 
-function renderBoatosPickers(selectedIds = [], destinationId = null, mentionRoleId = null) {
+function renderBoatosPickers(selectedIds = [], sheetIds = [], destinationId = null, mentionRoleId = null) {
   if (!state.guild) return;
   fillSourcePicker(els.boatosSources, selectedIds);
+  if (els.boatosSheetSources) fillSourcePicker(els.boatosSheetSources, sheetIds);
   els.boatosDestination.innerHTML = `<option value="">Selecione…</option>${channelSelectOptions(destinationId)}`;
 
   const roles = state.guild.roles || [];
@@ -805,8 +807,11 @@ function formatBoatosStatus(config, timezone) {
   const last = config.lastRunAt ? new Date(config.lastRunAt).toLocaleString('pt-BR') : 'nunca';
   const err = config.lastError ? ` · erro: ${config.lastError}` : '';
   const mention = config.mentionRoleId ? ` · menciona cargo` : '';
+  const sheets = config.characterSheetChannelIds?.length
+    ? ` · ${config.characterSheetChannelIds.length} canal(is) de ficha`
+    : '';
   return (
-    `Fuso ${timezone} · ${config.enabled ? 'Ativo' : 'Desativado'} · Msgs ${period} · ` +
+    `Fuso ${timezone} · ${config.enabled ? 'Ativo' : 'Desativado'} · Msgs ${period}${sheets} · ` +
     `Envio ${time} (${dayLabels(config.daysOfWeek) || '—'})${mention} · Última: ${last}${err}`
   );
 }
@@ -816,6 +821,7 @@ function buildBoatosPayload() {
   return {
     enabled: els.boatosEnabled.checked,
     sourceChannelIds: getSelectedSourceIdsFrom(els.boatosSources),
+    characterSheetChannelIds: els.boatosSheetSources ? getSelectedSourceIdsFrom(els.boatosSheetSources) : [],
     destinationChannelId: els.boatosDestination.value || null,
     mentionRoleId: els.boatosMentionRole.value || null,
     dateMode,
@@ -847,6 +853,7 @@ async function openBoatosModal() {
     els.boatosPrompt.value = config.prompt || '';
     renderBoatosPickers(
       config.sourceChannelIds || [],
+      config.characterSheetChannelIds || [],
       config.destinationChannelId,
       config.mentionRoleId,
     );
@@ -1636,6 +1643,21 @@ els.boatosSources.addEventListener('change', (event) => {
 
   const channelCheck = event.target.closest('.channel-check');
   if (channelCheck) syncGroupCheckbox(els.boatosSources, channelCheck.dataset.groupId);
+});
+
+els.boatosSheetSources?.addEventListener('change', (event) => {
+  const groupCheck = event.target.closest('.group-check');
+  if (groupCheck) {
+    const groupId = groupCheck.dataset.groupId;
+    for (const input of els.boatosSheetSources.querySelectorAll(`.channel-check[data-group-id="${groupId}"]`)) {
+      input.checked = groupCheck.checked;
+    }
+    groupCheck.indeterminate = false;
+    return;
+  }
+
+  const channelCheck = event.target.closest('.channel-check');
+  if (channelCheck) syncGroupCheckbox(els.boatosSheetSources, channelCheck.dataset.groupId);
 });
 
 els.messageForm.addEventListener('submit', saveMessageSchedule);

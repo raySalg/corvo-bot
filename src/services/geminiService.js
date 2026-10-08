@@ -391,11 +391,14 @@ async function analyzeMessagesWithAi({ prompt, messagesCorpus, meta = {} }) {
   const userContent = [
     `Instruções do usuário:\n${userPrompt}`,
     '',
-    meta.from && meta.to ? `Período das mensagens: ${meta.from} → ${meta.to}` : null,
-    meta.channelCount != null ? `Canais/tópicos analisados: ${meta.channelCount}` : null,
-    meta.messageCount != null ? `Total de mensagens no material: ${meta.messageCount}` : null,
+    meta.from && meta.to ? `Período das mensagens de origem: ${meta.from} → ${meta.to}` : null,
+    meta.channelCount != null ? `Canais/tópicos de origem analisados: ${meta.channelCount}` : null,
+    meta.messageCount != null ? `Total de mensagens recentes: ${meta.messageCount}` : null,
+    meta.sheetChannelCount != null && meta.sheetChannelCount > 0
+      ? `Canais de fichas de personagens (histórico completo): ${meta.sheetChannelCount} (${meta.sheetMessageCount || 0} msgs de fichas)`
+      : null,
     '',
-    'Material (mensagens):',
+    'Material (fichas e mensagens):',
     corpus,
   ]
     .filter((line) => line != null)
